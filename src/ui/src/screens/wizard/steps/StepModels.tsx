@@ -96,9 +96,10 @@ export function StepModels({ onNext }: WizardStepProps) {
   return (
     <div className="wizard-step-body">
       <p>
-        O figcode pede <code>claude-opus-4-8</code> e{" "}
-        <code>claude-haiku-4-5</code>. Mapeie esses nomes para modelos do seu
-        provedor.
+        O agente pede <code>claude-opus-4-8</code> e <code>claude-haiku-4-5</code>. O seletor do
+        Make envia codenames da Figma (ex.: <code>figaro-gpt-6-sol</code>,{" "}
+        <code>anthropic-claude-5.5-opus</code>, <code>aqua</code>); esses ids caem na rota
+        principal.
       </p>
       {provider ? (
         <p className="wizard-meta">
@@ -112,7 +113,7 @@ export function StepModels({ onNext }: WizardStepProps) {
       )}
       <div className="wizard-form">
         <label className="wizard-field">
-          <span>Modelo para claude-opus-4-8</span>
+          <span>Modelo principal (claude-opus-4-8 e ids do Make)</span>
           <input
             type="text"
             value={opus}

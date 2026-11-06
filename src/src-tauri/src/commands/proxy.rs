@@ -7,6 +7,7 @@ use ffg_core::secrets::SecretKey;
 use ffg_core::setup::SetupState;
 use ffg_proxy::proxy::{self, ProxyConfig, ProxySelfTest, ProxyStatus};
 use ffg_supervisor::allocate_port;
+use std::collections::BTreeMap;
 use tauri::State;
 
 #[tauri::command]
@@ -75,6 +76,20 @@ pub async fn ensure_proxy(state: &AppState) -> Result<ProxyStatus, UiError> {
         })?;
     let ca = state.ca.authority().map_err(|error| error.to_ui_error())?;
 
+    // Rotas configuradas passam intactas; ids do seletor do Make (codenames da
+    // Figma) não estão no mapa e caem na rota principal.
+    let model_aliases: BTreeMap<String, String> = setup
+        .models
+        .routes
+        .iter()
+        .map(|route| (route.public_name.clone(), route.public_name.clone()))
+        .collect();
+    let default_model = setup
+        .models
+        .routes
+        .first()
+        .map(|route| route.public_name.clone());
+
     let handle = proxy::start(ProxyConfig {
         port: proxy_port,
         ca,
@@ -82,6 +97,8 @@ pub async fn ensure_proxy(state: &AppState) -> Result<ProxyStatus, UiError> {
         master_key: master.expose().to_owned(),
         figma_upstream: "https://api.figma.com".to_owned(),
         mitm_hosts: vec!["api.figma.com".to_owned()],
+        model_aliases,
+        default_model,
     })
     .await
     .map_err(proxy_error)?;

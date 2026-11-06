@@ -15,6 +15,7 @@ use hyper::{Request, Response};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -35,6 +36,12 @@ pub struct ProxyConfig {
     pub master_key: String,
     pub figma_upstream: String,
     pub mitm_hosts: Vec<String>,
+    /// Mapa id recebido → `model_name` do LiteLLM. Ids configurados podem
+    /// apontar para si mesmos (identidade) ou para outra rota.
+    pub model_aliases: BTreeMap<String, String>,
+    /// Rota usada quando o id não está em `model_aliases`. É o que faz o
+    /// seletor do Make (codenames da Figma) cair numa rota existente.
+    pub default_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -190,6 +197,8 @@ pub async fn start(config: ProxyConfig) -> Result<ProxyHandle, ProxyError> {
             .iter()
             .map(|host| host.to_ascii_lowercase())
             .collect(),
+        model_aliases: config.model_aliases,
+        default_model: config.default_model,
         acceptor,
         stats: Arc::clone(&stats),
         client: reqwest::Client::builder()
@@ -240,6 +249,8 @@ struct Context {
     master_key: String,
     figma_upstream: String,
     mitm_hosts: Vec<String>,
+    model_aliases: BTreeMap<String, String>,
+    default_model: Option<String>,
     acceptor: Option<TlsAcceptor>,
     stats: Arc<Stats>,
     client: reqwest::Client,
@@ -355,7 +366,7 @@ async fn handle_request(request: Request<Incoming>, context: Arc<Context>) -> Re
     let method = reqwest::Method::from_bytes(request.method().as_str().as_bytes())
         .unwrap_or(reqwest::Method::GET);
     let headers = request.headers().clone();
-    let body = match request.into_body().collect().await {
+    let mut body = match request.into_body().collect().await {
         Ok(collected) => collected.to_bytes(),
         Err(error) => {
             context.stats.failures.fetch_add(1, Ordering::SeqCst);
@@ -365,6 +376,16 @@ async fn handle_request(request: Request<Incoming>, context: Arc<Context>) -> Re
             return full_response(StatusCode::BAD_REQUEST, "corpo inválido");
         }
     };
+
+    if ai {
+        if let Some(rewritten) = rewrite_model(
+            &body,
+            &context.model_aliases,
+            context.default_model.as_deref(),
+        ) {
+            body = Bytes::from(rewritten);
+        }
+    }
 
     let mut builder = context.client.request(method, &target);
     for (name, value) in &headers {
@@ -411,6 +432,33 @@ async fn handle_request(request: Request<Incoming>, context: Arc<Context>) -> Re
     builder
         .body(body)
         .unwrap_or_else(|_| full_response(StatusCode::BAD_GATEWAY, "resposta inválida"))
+}
+
+/// Reescreve o campo `model` do corpo JSON: usa o alias configurado para o id
+/// recebido ou, quando ele não está no mapa, cai no `default_model`.
+///
+/// Devolve `None` quando não há mudança, para não re-serializar o corpo à toa.
+fn rewrite_model(
+    body: &[u8],
+    aliases: &BTreeMap<String, String>,
+    default_model: Option<&str>,
+) -> Option<Vec<u8>> {
+    if body.is_empty() {
+        return None;
+    }
+    let mut value: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let model = value.get("model")?.as_str()?.to_owned();
+
+    let target = match aliases.get(&model) {
+        Some(target) => target.clone(),
+        None => default_model?.to_owned(),
+    };
+    if target == model {
+        return None;
+    }
+
+    value["model"] = serde_json::Value::String(target);
+    serde_json::to_vec(&value).ok()
 }
 
 fn full_response(status: StatusCode, message: &str) -> Response<ProxyBody> {
@@ -467,6 +515,8 @@ mod tests {
             master_key: "master-key".to_owned(),
             figma_upstream: "https://api.figma.com".to_owned(),
             mitm_hosts: vec!["api.figma.com".to_owned()],
+            model_aliases: BTreeMap::new(),
+            default_model: None,
         }
     }
 
@@ -554,5 +604,91 @@ mod tests {
         assert_eq!(response.status(), 200);
         assert!(handle.status().ai_requests >= 1);
         handle.stop();
+    }
+
+    #[tokio::test]
+    async fn maps_unknown_picker_models_to_the_default_route() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&server)
+            .await;
+
+        let ca = Arc::new(CertificateAuthority::generate().expect("ca"));
+        let mut proxy_config = config(Arc::clone(&ca), server.uri());
+        proxy_config.model_aliases =
+            BTreeMap::from([("claude-opus-4-8".to_owned(), "claude-opus-4-8".to_owned())]);
+        proxy_config.default_model = Some("claude-opus-4-8".to_owned());
+
+        let handle = start(proxy_config).await.expect("proxy");
+        let proxy =
+            reqwest::Proxy::all(format!("http://127.0.0.1:{}", handle.port())).expect("proxy");
+        let client = reqwest::Client::builder()
+            .proxy(proxy)
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(ca.cert_pem().as_bytes()).expect("root"),
+            )
+            .build()
+            .expect("client");
+
+        let response = client
+            .post("https://api.figma.com/ai-gateway/llm/provider/universal/v1/messages")
+            .header("authorization", "Bearer figma-token")
+            .json(&serde_json::json!({
+                "model": "figaro-gpt-6-sol",
+                "max_tokens": 8,
+                "messages": [{"role": "user", "content": "ping"}]
+            }))
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .expect("request");
+        assert_eq!(response.status(), 200);
+
+        let requests = server.received_requests().await.expect("requests");
+        let body: serde_json::Value =
+            serde_json::from_slice(&requests[0].body).expect("corpo encaminhado");
+        assert_eq!(body["model"], "claude-opus-4-8");
+        assert_eq!(body["max_tokens"], serde_json::json!(8));
+        handle.stop();
+    }
+
+    #[test]
+    fn rewrite_model_uses_alias_then_default() {
+        let aliases = BTreeMap::from([
+            ("claude-haiku-4-5".to_owned(), "claude-haiku-4-5".to_owned()),
+            ("aqua".to_owned(), "claude-haiku-4-5".to_owned()),
+        ]);
+
+        let unchanged = rewrite_model(
+            br#"{"model":"claude-haiku-4-5"}"#,
+            &aliases,
+            Some("claude-opus-4-8"),
+        );
+        assert!(unchanged.is_none());
+
+        let aliased = rewrite_model(br#"{"model":"aqua"}"#, &aliases, None).expect("alias");
+        let value: serde_json::Value = serde_json::from_slice(&aliased).expect("json");
+        assert_eq!(value["model"], "claude-haiku-4-5");
+
+        let defaulted = rewrite_model(
+            br#"{"model":"figaro-gpt-6-sol","max_tokens":8}"#,
+            &aliases,
+            Some("claude-opus-4-8"),
+        )
+        .expect("default");
+        let value: serde_json::Value = serde_json::from_slice(&defaulted).expect("json");
+        assert_eq!(value["model"], "claude-opus-4-8");
+        assert_eq!(value["max_tokens"], serde_json::json!(8));
+    }
+
+    #[test]
+    fn rewrite_model_ignores_bodies_without_a_known_model() {
+        let aliases = BTreeMap::new();
+        assert!(rewrite_model(b"", &aliases, Some("claude-opus-4-8")).is_none());
+        assert!(rewrite_model(b"not-json", &aliases, Some("claude-opus-4-8")).is_none());
+        assert!(rewrite_model(br#"{"max_tokens":8}"#, &aliases, Some("claude-opus-4-8")).is_none());
+        assert!(rewrite_model(br#"{"model":"aqua"}"#, &aliases, None).is_none());
     }
 }
