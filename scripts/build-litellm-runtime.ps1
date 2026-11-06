@@ -25,13 +25,28 @@ if (-not (Test-Path $py)) { throw "python da venv não encontrado" }
 if ($LASTEXITCODE -ne 0) { throw "pip install do LiteLLM falhou" }
 
 $entry = Join-Path $work "entrypoint.py"
-@'
+@"
 import sys
-from litellm.proxy.proxy_server import run_server
+
+VERSION = "$Version"
+
+
+def main() -> int:
+    # O CLI do LiteLLM não expõe --version; o probe do app espera a versão exata.
+    if "--version" in sys.argv[1:]:
+        print(f"litellm {VERSION}")
+        return 0
+
+    # `litellm.proxy.proxy_server` não exporta `run_server`; o comando Click vive em proxy_cli.
+    from litellm.proxy.proxy_cli import run_server
+
+    run_server()
+    return 0
+
 
 if __name__ == "__main__":
-    sys.exit(run_server())
-'@ | Set-Content -Encoding utf8 $entry
+    sys.exit(main())
+"@ | Set-Content -Encoding utf8 $entry
 
 Push-Location $work
 try {
