@@ -71,7 +71,9 @@ console.log(`keyId: ${keyId}`);
 console.log(`chave pública embutida em ${relative(repoRoot, keysFile)}`);
 console.log("");
 console.log("próximos passos:");
-console.log(`  1. gh secret set MANIFEST_SIGNING_KEY < ${keyOut}`);
+console.log(
+  `  1. gh secret set MANIFEST_SIGNING_KEY --body ((Get-Content -Raw "${keyOut}").Trim())`,
+);
 console.log(`  2. gh variable set MANIFEST_KEY_ID --body "${keyId}"`);
 console.log(`  3. gh variable set MANIFEST_PUBLIC_KEY --body "${publicB64}"`);
 console.log("  4. recompile o app para embutir a nova chave (pnpm tauri build --no-bundle)");
