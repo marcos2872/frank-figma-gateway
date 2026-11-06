@@ -111,6 +111,7 @@ import type {
   CaStatus,
   ComponentId,
   CopilotStatus,
+  DeviceFlow,
   EnvironmentReport,
   FigmaInfo,
   IntegrationValidation,
@@ -275,12 +276,16 @@ export async function disconnectCopilot(): Promise<CopilotStatus> {
   return invoke<CopilotStatus>("copilot_disconnect");
 }
 
-export async function beginCopilotAuth(): Promise<void> {
-  return invoke<void>("copilot_begin_auth");
+export async function beginCopilotAuth(): Promise<DeviceFlow> {
+  return invoke<DeviceFlow>("copilot_begin_auth");
 }
 
-export async function pollCopilotAuth(): Promise<void> {
-  return invoke<void>("copilot_poll_auth");
+export async function pollCopilotAuth(deviceCode: string): Promise<CopilotStatus> {
+  return invoke<CopilotStatus>("copilot_poll_auth", { deviceCode });
+}
+
+export async function openExternal(url: string): Promise<void> {
+  return invoke<void>("open_url", { url });
 }
 
 export async function getServiceLogs(

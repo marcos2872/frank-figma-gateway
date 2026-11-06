@@ -3,17 +3,26 @@ import {
   beginCopilotAuth,
   beginStep,
   completeStep,
+  DEFAULT_MANIFEST_URL,
+  DEFAULT_SIGNATURE_URL,
   getCopilotStatus,
   getProvidersCatalog,
+  getRuntimeStatus,
+  installRuntime,
+  openExternal,
+  pollCopilotAuth,
   prepareCopilot,
   saveProvider,
 } from "../../../lib/bridge";
 import type {
   CopilotStatus,
+  DeviceFlow,
+  DownloadProgress,
   ProviderDescriptor,
   ProviderKind,
   ProviderProfileInput,
 } from "../../../lib/contracts";
+import { onDownloadProgress } from "../../../lib/events";
 import { useAppStore } from "../../../state/AppStore";
 import { errorMessage, type WizardStepProps } from "../shared";
 
@@ -29,6 +38,8 @@ export function StepProvider({ onNext }: WizardStepProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copilot, setCopilot] = useState<CopilotStatus | null>(null);
+  const [flow, setFlow] = useState<DeviceFlow | null>(null);
+  const [progress, setProgress] = useState<DownloadProgress | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +60,47 @@ export function StepProvider({ onNext }: WizardStepProps) {
       getCopilotStatus().then(setCopilot).catch(() => undefined);
     }
   }, [kind]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    void onDownloadProgress((next) => {
+      if (!cancelled && next.component === "pgsql") setProgress(next);
+    }).then((cleanup) => {
+      if (cancelled) cleanup();
+      else unlisten = cleanup;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!flow) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const status = await pollCopilotAuth(flow.deviceCode);
+        if (cancelled) return;
+        setCopilot(status);
+        if (status.copilot.connected) {
+          setFlow(null);
+          await reload();
+        }
+      } catch (problem) {
+        if (!cancelled) {
+          setError(errorMessage(problem));
+          setFlow(null);
+        }
+      }
+    };
+    const id = setInterval(() => void tick(), Math.max(flow.interval, 5) * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [flow, reload]);
 
   const descriptor = useMemo(
     () => catalog.find((item) => item.kind === kind),
@@ -102,7 +154,17 @@ export function StepProvider({ onNext }: WizardStepProps) {
     setBusy(true);
     setError(null);
     try {
+      const active = await getRuntimeStatus();
+      if (!active.pgsql) {
+        await installRuntime(
+          "pgsql",
+          DEFAULT_MANIFEST_URL,
+          DEFAULT_SIGNATURE_URL,
+          crypto.randomUUID(),
+        );
+      }
       setCopilot(await prepareCopilot());
+      await reload();
     } catch (problem) {
       setError(errorMessage(problem));
     } finally {
@@ -114,7 +176,7 @@ export function StepProvider({ onNext }: WizardStepProps) {
     setBusy(true);
     setError(null);
     try {
-      await beginCopilotAuth();
+      setFlow(await beginCopilotAuth());
     } catch (problem) {
       setError(errorMessage(problem));
     } finally {
@@ -171,21 +233,50 @@ export function StepProvider({ onNext }: WizardStepProps) {
       {kind === "gitHubCopilot" ? (
         <div className="wizard-copilot">
           <p>
-            O Copilot usa Postgres embutido e OAuth do GitHub. O aplicativo ainda
-            está validando a API de credential do LiteLLM.
+            O Copilot usa Postgres embutido e o OAuth do GitHub. O primeiro uso
+            baixa o Postgres (~305 MB).
           </p>
           {copilot ? (
             <p className="wizard-meta">
-              Postgres: {copilot.postgres.initialized ? "inicializado" : "pendente"} ·
+              Postgres: {copilot.postgres.initialized ? "inicializado" : "pendente"} ·{" "}
               {copilot.postgres.running ? " rodando" : " parado"}
+              {copilot.copilot.connected
+                ? ` · GitHub: ${copilot.copilot.githubLogin ?? "conectado"}`
+                : ""}
             </p>
+          ) : null}
+          {progress ? (
+            <p className="wizard-meta">
+              Postgres: {progress.phase} ·{" "}
+              {Math.round((progress.downloaded / Math.max(progress.total, 1)) * 100)}%
+            </p>
+          ) : null}
+          {flow ? (
+            <div className="wizard-meta">
+              <p>
+                Abra <code>{flow.verificationUri}</code> e informe o código{" "}
+                <strong>{flow.userCode}</strong>. Aguardando autorização…
+              </p>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void openExternal(flow.verificationUri)}
+              >
+                Abrir GitHub
+              </button>
+            </div>
           ) : null}
           <div className="wizard-step-actions">
             <button type="button" className="secondary" disabled={busy} onClick={() => void prepare()}>
               Preparar Postgres
             </button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => void connectGithub()}>
-              Conectar GitHub
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || Boolean(flow) || copilot?.copilot.connected}
+              onClick={() => void connectGithub()}
+            >
+              {copilot?.copilot.connected ? "Conectado" : "Conectar GitHub"}
             </button>
           </div>
         </div>

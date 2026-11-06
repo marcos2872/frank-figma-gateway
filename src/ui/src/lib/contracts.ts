@@ -386,6 +386,14 @@ export interface CopilotStatus {
   postgres: PostgresStatus;
 }
 
+export interface DeviceFlow {
+  deviceCode: string;
+  userCode: string;
+  verificationUri: string;
+  expiresIn: number;
+  interval: number;
+}
+
 export type CheckId =
   | "platform"
   | "dataDir"

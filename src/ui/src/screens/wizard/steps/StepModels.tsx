@@ -70,8 +70,9 @@ export function StepModels({ onNext }: WizardStepProps) {
       const route = (publicName: string, providerModel: string): ModelRoute => ({
         publicName,
         providerModel,
-        credentialName:
-          provider.kind === "gitHubCopilot" ? "github-copilot" : null,
+        // O Copilot autentica pelo token do device flow (GITHUB_COPILOT_TOKEN_DIR),
+        // não por credential no banco.
+        credentialName: null,
         apiKeyEnv: provider.kind === "gitHubCopilot" ? null : envVar,
         apiBase: provider.apiBase ?? null,
         apiVersion: provider.apiVersion ?? null,
