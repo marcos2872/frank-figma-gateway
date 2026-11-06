@@ -159,9 +159,10 @@ do LiteLLM. A alternativa sem Postgres seria trocar o Proxy pelo SDK sidecar, as
 - **Estado do app**: SQLite/JSON.
 
 ```text
-app/
+src/
 ├── src-tauri/        # supervisor, proxy, CA, tray, onboarding
 ├── ui/               # dashboard, wizard, providers, logs
+├── crates/core/      # lógica pura testável
 └── runtime/          # LiteLLM/Postgres baixados
 ```
 

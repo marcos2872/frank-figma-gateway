@@ -11,8 +11,8 @@ componentes de terceiros, cujas licenças e atribuições estão abaixo.
 | [LiteLLM](https://github.com/BerriAI/litellm) | `v1.108.1` | MIT (exceto o diretório `enterprise/`) |
 | [Tauri](https://github.com/tauri-apps/tauri) | v2 | MIT ou Apache-2.0 (usamos MIT) |
 | [PostgreSQL](https://www.postgresql.org/) | 16.x | PostgreSQL License |
-| [React](https://github.com/facebook/react) | 19.x (previsto) | MIT |
-| [Vite](https://github.com/vitejs/vite) | 7.x (previsto) | MIT |
+| [React](https://github.com/facebook/react) | 19.3.1 | MIT |
+| [Vite](https://github.com/vitejs/vite) | 7.3.7 | MIT |
 
 ---
 

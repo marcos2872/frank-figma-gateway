@@ -119,7 +119,7 @@ A UI do LiteLLM não deve ser iframe no dashboard (X-Frame-Options); usar `Webvi
 ## 7. Estrutura de pastas
 
 ```text
-app/
+src/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── main.rs
@@ -149,7 +149,7 @@ app/
 
 | Tema | Recomendação |
 |---|---|
-| Frontend | React + Vite |
+| Frontend | React + Vite (decidido no scaffold) |
 | Config de providers | Híbrido: nossa UI para o básico; LiteLLM UI para Copilot/avançado |
 | Sair | Desativar a integração (remover env) e avisar |
 | Postgres | Baixar só no perfil Copilot |

@@ -11,7 +11,7 @@ inferência do `figcode`/Claude Code e reescreve para o **LiteLLM Proxy** (sidec
 
 Stack:
 
-- **App:** Tauri v2 (Rust) + frontend React/Vite (previsto)
+- **App:** Tauri v2 (Rust) + frontend React/Vite
 - **Proxy:** Rust (MITM seletivo em `api.figma.com`)
 - **Engine:** LiteLLM Proxy `v1.108.1`
 - **Banco:** Postgres embutido no perfil Copilot; SQLite apenas para estado do app
@@ -21,11 +21,12 @@ Documentação de referência: [docs/index.md](docs/index.md).
 
 ## 2. Estado atual e pendências
 
-Hoje o repositório é **documentação + licenças**. Ainda não há código, CI nem CD.
+Hoje o repositório tem **documentação, licenças e o scaffold do app em `src/`**. CI e CD ainda não
+existem.
 
 Pendências de implementação (ordem sugerida):
 
-- [ ] Scaffold do app Tauri (tray, autostart, single-instance, close-to-tray)
+- [x] Scaffold do app Tauri (tray, autostart, single-instance, close-to-tray)
 - [ ] Supervisor de sidecars (LiteLLM/Postgres) com health e restart
 - [ ] Proxy MITM + rewrite de path/auth + CA local
 - [ ] Runtime do LiteLLM empacotado e versionado
@@ -49,7 +50,7 @@ Pendências de implementação (ordem sugerida):
 ## 4. Estrutura planejada
 
 ```text
-app/
+src/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── main.rs

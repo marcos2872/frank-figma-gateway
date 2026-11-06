@@ -40,7 +40,7 @@ flowchart LR
 
 ## Stack
 
-- **App:** Tauri v2 (Rust) + React/Vite (previsto)
+- **App:** Tauri v2 (Rust) + React/Vite
 - **Proxy:** Rust (MITM seletivo em `api.figma.com`)
 - **Engine:** LiteLLM Proxy `v1.108.1` (sidecar)
 - **Banco:** Postgres embutido (perfil Copilot); SQLite apenas para estado do app
