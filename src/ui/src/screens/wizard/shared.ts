@@ -1,6 +1,7 @@
 import type { ProviderKind } from "../../lib/contracts";
+import { errorMessage } from "../../lib/errors";
 
-export { errorMessage } from "../../lib/errors";
+export { errorMessage };
 
 export interface WizardStepProps {
   onNext: () => void;
@@ -98,7 +99,9 @@ export async function waitForLiteLlm(
       await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
   }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("LiteLLM não ficou saudável a tempo.");
+  throw new Error(
+    lastError
+      ? errorMessage(lastError)
+      : "LiteLLM não ficou saudável a tempo.",
+  );
 }

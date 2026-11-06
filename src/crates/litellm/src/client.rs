@@ -26,6 +26,7 @@ impl LiteLlmClient {
             base_url: base_url.into().trim_end_matches('/').to_owned(),
             master_key: master_key.into(),
             client: reqwest::Client::builder()
+                .no_proxy()
                 .user_agent("frank-figma-gateway")
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),

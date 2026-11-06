@@ -137,6 +137,7 @@ impl Default for Supervisor {
 impl Supervisor {
     pub fn new(backoff: Backoff, max_restarts: u32) -> Self {
         let client = reqwest::Client::builder()
+            .no_proxy()
             .user_agent("frank-figma-gateway")
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());

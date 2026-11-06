@@ -3,6 +3,7 @@ import {
   applyModels,
   beginStep,
   completeStep,
+  getServiceLogs,
   litellmHealth,
   startServices,
   testProvider,
@@ -92,7 +93,17 @@ export function StepModels({ onNext }: WizardStepProps) {
       await beginStep("models");
       await applyModels(settings);
       await startServices();
-      await waitForLiteLlm(litellmHealth);
+      try {
+        await waitForLiteLlm(litellmHealth);
+      } catch (problem) {
+        const logs = await getServiceLogs("litellm", 20).catch(() => []);
+        const tail = logs.map((entry) => entry.line).join("\n").trim();
+        throw new Error(
+          tail
+            ? `${errorMessage(problem)}\n\nÚltimas linhas do LiteLLM:\n${tail}`
+            : errorMessage(problem),
+        );
+      }
       await testProvider(OPUS);
       await testProvider(HAIKU);
       await completeStep("models", { kind: "done" });
