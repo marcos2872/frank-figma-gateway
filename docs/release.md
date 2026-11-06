@@ -12,6 +12,26 @@
   - `MANIFEST_KEY_ID`: identificador da chave, ex. `2026-01`;
   - `MANIFEST_PUBLIC_KEY`: chave pública correspondente em base64.
 
+### 1.1 Gerar o par de chaves
+
+O par é gerado fora do repositório: a pública é embutida no app, a privada vai para o GitHub
+Secrets.
+
+```powershell
+node scripts/generate-manifest-key.mjs `
+  --key-id "2026-01" `
+  --key-out "$env:USERPROFILE\.ffg\manifest-signing-key.txt"
+```
+
+O script grava a chave privada fora do repositório (recusa caminhos internos), substitui o
+placeholder em `src/src-tauri/resources/keys/manifest-keys.json` por uma chave `active` com o
+`keyId` informado e imprime a chave pública com os comandos de `gh secret set`/`gh variable set`.
+
+Depois de configurar o secret, apague o arquivo da chave privada e mantenha a cópia no cofre.
+
+> A chave pública é compilada dentro do binário (`include_str!` em `src-tauri/src/state.rs`).
+> **Recompile o app depois de trocar a chave**: um app antigo recusa o manifesto novo.
+
 ## 2. Gerar os artefatos
 
 ```powershell
@@ -58,6 +78,9 @@ O workflow [`.github/workflows/release.yml`](../.github/workflows/release.yml) d
 2. geração do `manifest.json`;
 3. assinatura e verificação em Ubuntu;
 4. publicação do release com ZIPs, manifesto, `.sig` e `SHA256SUMS`.
+
+O job de assinatura roda `scripts/check-manifest-key.mjs` antes de assinar e falha se a chave
+embutida no app não for a mesma de `MANIFEST_KEY_ID`/`MANIFEST_PUBLIC_KEY`.
 
 Não publique sem conferir o `SHA256SUMS` e sem a chave pública correspondente embutida no app.
 

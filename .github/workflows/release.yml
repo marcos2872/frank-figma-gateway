@@ -57,6 +57,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verificar chave embutida no app
+        run: node scripts/check-manifest-key.mjs
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
