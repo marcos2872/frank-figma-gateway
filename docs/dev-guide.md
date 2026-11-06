@@ -279,7 +279,7 @@ A `main` é protegida: **push direto é bloqueado**. O merge exige:
 | `ci-rust` | fmt, clippy e testes do núcleo |
 | `ci-coverage` | cobertura ≥ 80% das linhas (`ffg-core`) |
 | `ci-web` | `pnpm install --frozen-lockfile` + `pnpm build` |
-| `ci-tauri` | `pnpm tauri build --no-bundle` no Windows |
+| `ci-tauri` | `cargo clippy -p frank-figma-gateway -D warnings` + `pnpm tauri build --no-bundle` no Windows |
 | `ci-docs` | links, fences e JSON |
 
 ## 8. Tarefas comuns

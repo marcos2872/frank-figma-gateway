@@ -93,6 +93,8 @@ jobs:
         with:
           workspaces: src -> target
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: cargo clippy -p frank-figma-gateway --all-targets -- -D warnings
       - run: pnpm tauri build --no-bundle
 
   ci-docs:

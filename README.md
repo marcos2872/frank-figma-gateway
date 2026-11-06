@@ -52,7 +52,7 @@ flowchart LR
 
 | Documento | Conteúdo |
 |---|---|
-| [Arquitetura da IA no Figma](docs/figma-llm-architecture.md) | Como o app usa LLM hoje: `figcode`, Claude Code, AI Gateway, protocolos e evidências |
+| [Arquitetura da IA no Figma](docs/figma-llm-architecture.md) | Como o app usa LLM hoje: `figcode`, Claude Code, AI Gateway e protocolos |
 | [Arquitetura do gateway](docs/gateway-architecture.md) | Proxy MITM, LiteLLM sidecar, Postgres, roteamento, segurança e testes |
 | [App desktop (Tauri)](docs/desktop-app.md) | Janelas, tray, autostart, close-to-tray, supervisão e empacotamento |
 | [Instalação e onboarding](docs/onboarding.md) | Instalador mínimo, tour de configuração e download de componentes |
@@ -62,7 +62,7 @@ flowchart LR
 
 ## Status
 
-Mapeamento concluído e arquitetura definida: **viável**. A inferência é um contrato padrão Anthropic,
+Arquitetura definida e viável. A inferência é um contrato padrão Anthropic,
 o endpoint é fixo (`api.figma.com/ai-gateway/llm/provider/universal`), o TLS é configurável e não há
 certificate pinning — nenhum patch no app é necessário.
 

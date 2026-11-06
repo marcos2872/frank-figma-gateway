@@ -80,8 +80,6 @@ docs/
 licenses/
 ```
 
-`executavel/` é artefato de análise e **não** entra no Git.
-
 ## 5. Fluxo de trabalho
 
 - **Análise** (opinar, revisar, diagnosticar): entregue achados e plano; não edite nem rode comandos que
@@ -172,7 +170,7 @@ Regras:
 - Um commit = uma mudança lógica; evite misturar refactor com feature.
 - Sem ponto final no resumo; ≤ 100 caracteres.
 - Corpo explica o **porquê**, não o como.
-- Nunca commitar `.env`, chaves, tokens, `executavel/` ou binários gerados.
+- Nunca commitar `.env`, chaves, tokens ou binários gerados.
 - `BREAKING CHANGE:` para mudança incompatível.
 - Nunca `git push --force` em branch compartilhada; `--force-with-lease` só com autorização.
 - Antes de commitar: rodar fmt/lint/testes relevantes.
@@ -196,12 +194,13 @@ Implementada em [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Roda em 
 | `ci-rust` | `cargo fmt --check`, `cargo clippy -p ffg-core -D warnings`, `cargo test -p ffg-core` |
 | `ci-coverage` | `cargo llvm-cov -p ffg-core --fail-under-lines 80` + artefato `lcov.info` |
 | `ci-web` | `pnpm install --frozen-lockfile`, `pnpm build` |
-| `ci-tauri` | `pnpm tauri build --no-bundle` (Windows) |
+| `ci-tauri` | `cargo clippy -p frank-figma-gateway -D warnings`, `pnpm tauri build --no-bundle` (Windows) |
 | `ci-docs` | `python3 scripts/check_docs.py` (links, fences e JSON) |
 
 Regras:
 
 - **Gate de cobertura**: falha se as linhas do núcleo (`ffg-core`) ficarem abaixo de **80%**.
+- **Warnings são erros** no crate do app (`cargo clippy -D warnings`), inclusive `dead_code`.
 - Todos os jobs são **required checks** na `main`.
 - Cache de Cargo e pnpm; concorrência cancela runs antigos do mesmo ref.
 - Windows é o alvo primário para o app Tauri.

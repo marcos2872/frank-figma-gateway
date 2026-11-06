@@ -4,7 +4,7 @@ Ponto de entrada dos documentos do projeto.
 
 | Documento | Descrição |
 |---|---|
-| [Arquitetura da IA no Figma](figma-llm-architecture.md) | Como o app usa LLM hoje: `figcode`, Claude Code, AI Gateway, protocolos e evidências |
+| [Arquitetura da IA no Figma](figma-llm-architecture.md) | Como o app usa LLM hoje: `figcode`, Claude Code, AI Gateway e protocolos |
 | [Arquitetura do gateway](gateway-architecture.md) | Proxy MITM, LiteLLM sidecar, Postgres, roteamento, segurança e testes |
 | [App desktop (Tauri)](desktop-app.md) | Janelas, tray, autostart, close-to-tray, supervisão dos sidecars e empacotamento |
 | [Instalação e onboarding](onboarding.md) | Instalador mínimo, tour de configuração, download/verificação de componentes |
