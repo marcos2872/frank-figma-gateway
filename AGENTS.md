@@ -1,0 +1,264 @@
+# AGENTS.md
+
+Regras de trabalho neste repositório para agentes humanos e de IA. Leia antes de abrir PR, commitar ou
+mexer na arquitetura.
+
+## 1. Contexto
+
+`frank-figma-gateway` é um app desktop **open source (MIT)** que permite ao Figma desktop usar modelos
+de LLM de qualquer provedor sem alterar o app. A integração é de rede: um proxy local intercepta a
+inferência do `figcode`/Claude Code e reescreve para o **LiteLLM Proxy** (sidecar, versão fixada).
+
+Stack:
+
+- **App:** Tauri v2 (Rust) + frontend React/Vite (previsto)
+- **Proxy:** Rust (MITM seletivo em `api.figma.com`)
+- **Engine:** LiteLLM Proxy `v1.108.1`
+- **Banco:** Postgres embutido no perfil Copilot; SQLite apenas para estado do app
+- **Integração:** CA local + `HTTPS_PROXY`, sem patch no Figma
+
+Documentação de referência: [docs/index.md](docs/index.md).
+
+## 2. Estado atual e pendências
+
+Hoje o repositório é **documentação + licenças**. Ainda não há código, CI nem CD.
+
+Pendências de implementação (ordem sugerida):
+
+- [ ] Scaffold do app Tauri (tray, autostart, single-instance, close-to-tray)
+- [ ] Supervisor de sidecars (LiteLLM/Postgres) com health e restart
+- [ ] Proxy MITM + rewrite de path/auth + CA local
+- [ ] Runtime do LiteLLM empacotado e versionado
+- [ ] Postgres embutido
+- [ ] Onboarding em passos (download → provider → Figma)
+- [ ] Integração Copilot (OAuth + Postgres)
+- [ ] CI (lint, testes, build)
+- [ ] CD (instalador assinado, manifesto assinado, updater)
+- [ ] Assinatura de código e notarização
+- [ ] ADRs das decisões já tomadas
+
+## 3. Princípios
+
+1. **Transparência** — não alterar binários, UI ou autenticação do Figma.
+2. **Escopo** — implemente o pedido; não antecipe refatorações ou features.
+3. **Reuso** — a camada de providers é o LiteLLM; não reimplemente adapters.
+4. **Segurança primeiro** — loopback, segredos fora do código, logs redigidos.
+5. **Documente decisões** — mudança de arquitetura exige atualização de docs/ADR.
+6. **Licença** — nada incompatível com MIT; ver seção 13.
+
+## 4. Estrutura planejada
+
+```text
+app/
+├── src-tauri/
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── supervisor.rs
+│   │   ├── proxy/
+│   │   ├── ca.rs
+│   │   ├── env.rs
+│   │   ├── postgres.rs
+│   │   ├── setup.rs
+│   │   ├── tray.rs
+│   │   └── commands.rs
+│   ├── binaries/
+│   └── resources/
+├── ui/
+└── runtime/
+docs/
+├── adr/
+├── figma-llm-architecture.md
+├── gateway-architecture.md
+├── desktop-app.md
+├── onboarding.md
+├── figma-gateway-integration.md
+├── gateway-prd.md
+└── index.md
+licenses/
+```
+
+`executavel/` é artefato de análise e **não** entra no Git.
+
+## 5. Fluxo de trabalho
+
+- **Análise** (opinar, revisar, diagnosticar): entregue achados e plano; não edite nem rode comandos que
+  alterem estado.
+- **Execução** (pedido explícito): implemente só o escopo pedido, com evidência (teste/lint).
+- **Ambíguo**: pergunte antes de agir.
+- Leia o doc relevante antes de mudar comportamento.
+- Mudou uma decisão? Atualize o doc e, se for estrutural, crie um ADR em `docs/adr/`.
+- Não invente fatos sobre o Figma, o LiteLLM ou versões: verifique em `docs/` ou na fonte.
+
+## 6. Qualidade de código
+
+### Geral
+
+- Código e identificadores em **inglês**; docs, commits e UI em **pt-BR**.
+- Funções pequenas, responsabilidade única, erros explícitos.
+- Sem segredos, tokens, prompts ou dados pessoais em logs.
+- Sem `TODO` órfão: abra issue ou registre em docs.
+- Dependência nova exige justificativa e checagem de licença.
+
+### Rust
+
+- `cargo fmt` e `cargo clippy --all-targets --all-features -- -D warnings`.
+- `unwrap`/`expect` proibidos em caminho de runtime; use `Result` + `thiserror`/`anyhow`.
+- `unsafe` só com justificativa, encapsulado e documentado.
+- `tracing` para logs estruturados; redaction de `Authorization`, tokens e headers sensíveis.
+- Nada de bloquear o runtime async; operações de processo com timeout.
+- Processos filhos sempre em Job Object (`KILL_ON_JOB_CLOSE`).
+
+### Frontend (quando existir)
+
+- TypeScript `strict`, sem `any` gratuito.
+- ESLint + Prettier; sem promessas flutuantes.
+- UI não acessa segredos nem executa comandos privilegiados; tudo via comandos Tauri validados.
+- Acessibilidade básica (foco, teclado, contraste).
+
+## 7. TDD e testes
+
+Ciclo: **red → green → refactor**. Teste primeiro para comportamento novo ou correção de bug.
+
+| Nível | O que cobre |
+|---|---|
+| Unitário | Rewrite de path/auth, verificação de hash/assinatura, mapa de modelos, redaction |
+| Integração | Proxy + LiteLLM fake; SSE, tools, erros, timeouts |
+| Contrato | Fixtures reais de `/v1/messages` e `count_tokens` (redigidas) |
+| E2E | Figma + app + provider sandbox |
+| Caos | Provedor lento/erro, queda no meio do stream, token expirado |
+| Regressão | Tráfego não-IA intacto; rollback de CA/env; resume do onboarding |
+
+Regras:
+
+- Testes determinísticos; sem rede real em unit/integração (use fake server).
+- Fixtures sem segredos e sem dados pessoais.
+- Todo bug corrigido ganha teste de regressão.
+- Meta: ≥ 80% no núcleo (proxy, supervisor, onboarding); não perseguir 100%.
+- PR sem teste para comportamento alterado não passa.
+
+## 8. Commits
+
+Formato **Conventional Commits**, resumo e corpo em **português**, comportamento no presente.
+
+```text
+<type>(<scope>): <resumo>
+
+<corpo: o que estava errado/faltando e por que a mudança resolve>
+
+<footer opcional>
+```
+
+Tipos: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `perf`, `build`, `style`, `revert`.
+
+Escopos sugeridos: `app`, `proxy`, `litellm`, `postgres`, `copilot`, `onboarding`, `docs`, `licenses`,
+`ci`, `release`, `security`, `tests`.
+
+Exemplos:
+
+```text
+feat(proxy): reescreve /v1/messages para o LiteLLM
+fix(onboarding): retoma o download após falha de rede
+test(proxy): cobre túnel para rotas não-IA
+ci: adiciona clippy e testes no PR
+docs(adr): registra LiteLLM como engine
+```
+
+Regras:
+
+- Um commit = uma mudança lógica; evite misturar refactor com feature.
+- Sem ponto final no resumo; ≤ 100 caracteres.
+- Corpo explica o **porquê**, não o como.
+- Nunca commitar `.env`, chaves, tokens, `executavel/` ou binários gerados.
+- `BREAKING CHANGE:` para mudança incompatível.
+- Nunca `git push --force` em branch compartilhada; `--force-with-lease` só com autorização.
+- Antes de commitar: rodar fmt/lint/testes relevantes.
+
+## 9. Branches e PRs
+
+- `main` é estável; trabalho em `feat/*`, `fix/*`, `docs/*`, `chore/*`.
+- PR pequeno, com descrição, evidência de teste e links para docs/issue.
+- Revisão obrigatória antes de merge (quando houver mais de um mantenedor).
+- Não mergear com CI vermelho.
+- Squash ou merge commit conforme o repositório definir; manter histórico legível.
+
+## 10. CI — pendente de implementação
+
+Contrato a implementar em `.github/workflows/ci.yml`:
+
+| Job | Comandos (quando o scaffold existir) |
+|---|---|
+| `lint-rust` | `cargo fmt --check`, `cargo clippy -- -D warnings` |
+| `test-rust` | `cargo test --all-features` |
+| `lint-web` | `pnpm lint`, `pnpm typecheck` |
+| `test-web` | `pnpm test` |
+| `build` | `pnpm tauri build` (Windows) |
+| `docs` | checagem de links relativos em `docs/` |
+
+Requisitos:
+
+- Rodar em PR e em `main`.
+- Cache de Cargo e pnpm.
+- Windows como alvo primário; Linux/macOS quando fizer sentido.
+- Checks obrigatórios para merge.
+- Artefatos de teste e binários publicados no run.
+
+## 11. CD — pendente de implementação
+
+Contrato a implementar em `.github/workflows/release.yml` (tag `v*`):
+
+1. Build do instalador Tauri (assinado e com timestamp).
+2. Build dos artefatos de runtime:
+   - `litellm-runtime-<versao>-win-x64.zip`;
+   - `pgsql-<versao>-win-x64.zip`.
+3. Gerar `manifest.json` com `version`, `url`, `sha256`, `size`, `minAppVersion`.
+4. Assinar o manifesto com **Ed25519** (chave privada em secret; pública embutida no app).
+5. Smoke test em runner Windows (provider fake).
+6. Publicar release com instalador, artefatos, manifesto e `.sig`.
+7. Atualizar o endpoint do updater.
+
+Regras:
+
+- LiteLLM e Postgres têm versão **fixada**; atualização é release nossa, nunca auto-update silencioso.
+- Release com rollback: manter a versão anterior disponível.
+- Não publicar sem artefatos verificados por hash.
+- Assinatura de código do instalador é obrigatória para release público.
+
+## 12. Documentação
+
+- Entrada: [docs/index.md](docs/index.md).
+- Mudou comportamento/arquitetura? Atualize o doc correspondente no mesmo PR.
+- Decisão estrutural → ADR em `docs/adr/NNNN-titulo.md` (contexto, decisão, consequências).
+- Diagramas em Mermaid; labels com `<br/>`, nunca `\n` literal.
+- Não criar documentação sem pedido explícito, exceto atualização de doc afetado pela mudança.
+
+## 13. Licenciamento e dependências
+
+- Projeto sob **MIT** ([LICENSE](LICENSE)).
+- Dependências permitidas: MIT, Apache-2.0, BSD, ISC, PostgreSQL License.
+- GPL/AGPL só com aprovação explícita.
+- Não usar código do diretório `enterprise/` do LiteLLM.
+- Dependência nova → atualizar [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) e `licenses/`.
+- Não redistribuir Figma desktop nem Claude Code.
+
+## 14. Segurança e privacidade
+
+- Bind apenas em `127.0.0.1`; portas dinâmicas.
+- `LITELLM_MASTER_KEY` e `LITELLM_SALT_KEY` no Credential Manager/DPAPI.
+- CA privada protegida; validade curta; remoção no uninstall.
+- Logs com tokens, prompts e headers sensíveis redigidos.
+- Verificar SHA-256 e assinatura dos artefatos baixados.
+- Sem admin; sem inbound firewall; sem telemetria externa.
+- Não contornar autenticação/licenciamento; uso exige conta Figma com IA e provider válido.
+
+## 15. Definition of Done
+
+Uma tarefa só está concluída quando:
+
+- [ ] Comportamento implementado no escopo pedido.
+- [ ] Testes (unit/integração quando aplicável) passando.
+- [ ] `fmt`, `clippy`, `lint` e `typecheck` verdes.
+- [ ] Docs/ADR atualizados.
+- [ ] Licenças/notices atualizados se houve dependência nova.
+- [ ] Sem segredos ou binários no diff.
+- [ ] Evidência apresentada (comando + resultado).
+- [ ] PR revisado (quando aplicável).
