@@ -1,4 +1,5 @@
 mod commands;
+mod logging;
 mod supervisor;
 mod tray;
 
@@ -17,7 +18,7 @@ pub fn run() {
             Some(vec!["--hidden"]),
         ))
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(logging::plugin())
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::preview_rewrite,

@@ -1125,6 +1125,7 @@ name = "frank-figma-gateway"
 version = "0.1.0"
 dependencies = [
  "ffg-core",
+ "log",
  "serde",
  "tauri",
  "tauri-build",
