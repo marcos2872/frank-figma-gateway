@@ -194,8 +194,10 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] Device flow do GitHub Copilot em `ffg-litellm::copilot`: `device/code`, polling
   (`authorization_pending`/`slow_down`/`expired_token`/`access_denied`), login e gravação do
   `access-token` em `copilot/github-copilot/`, injetado como `GITHUB_COPILOT_TOKEN_DIR` no LiteLLM.
-- [x] `copilot_prepare` baixa e instala o runtime do Postgres sob demanda (progresso no wizard) e
-  `runtime_install` sincroniza `setup.runtime`.
+- [x] `runtime_install` sincroniza `setup.runtime` (inclusive o hash do ZIP).
+- [x] Copilot sem Postgres: o token do device flow é a credencial. `DATABASE_URL` não é mais
+  injetado (o runtime empacotado não inclui o Prisma) e as chaves de provider vão para o env do
+  LiteLLM a partir do cofre.
 - [x] Rota `github_copilot/` não exige mais `litellm_credential_name` (autentica pelo token).
 - [ ] Testar o fluxo completo com uma conta Copilot real e confirmar o modelo do plano.
 - [ ] Revisão de ToS do OAuth (reusa o client id público do LiteLLM) antes do release público.

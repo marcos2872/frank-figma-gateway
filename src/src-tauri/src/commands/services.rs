@@ -1,7 +1,7 @@
-use crate::secrets::{ensure_secret, MASTER_KEY, POSTGRES_PASSWORD, SALT_KEY};
+use crate::secrets::{ensure_secret, MASTER_KEY, SALT_KEY};
 use crate::state::AppState;
 use ffg_core::error::UiError;
-use ffg_core::secrets::SecretError;
+use ffg_core::secrets::{SecretError, SecretKey};
 use ffg_supervisor::{
     allocate_port, HealthCheck, HealthState, LogLine, ServiceName, ServiceSpec, ServiceState,
     ServiceStatus,
@@ -144,20 +144,26 @@ async fn register_services(state: &AppState) -> Result<(), UiError> {
                     copilot_token_dir.display().to_string(),
                 );
             }
-            if setup.copilot.enabled && setup.copilot.postgres_ready {
-                if let Some(postgres_port) = setup.services.postgres {
-                    let password = ensure_secret(state.secrets.as_ref(), POSTGRES_PASSWORD)
-                        .map_err(secret_error)?;
-                    env.insert(
-                        "DATABASE_URL".to_owned(),
-                        ffg_postgres::database_url(
-                            postgres_port,
-                            password.expose(),
-                            &setup.copilot.database_name,
-                        ),
-                    );
+            // Chaves de provider: o config referencia `os.environ/<VAR>`.
+            if let Some(secret_ref) = setup
+                .provider
+                .as_ref()
+                .and_then(|provider| provider.secret_ref.as_deref())
+            {
+                if let Some(secret) = state
+                    .secrets
+                    .get(&SecretKey::new(secret_ref))
+                    .map_err(secret_error)?
+                {
+                    for route in &setup.models.routes {
+                        if let Some(name) = &route.api_key_env {
+                            env.insert(name.clone(), secret.expose().to_owned());
+                        }
+                    }
                 }
             }
+            // Sem `DATABASE_URL`: o runtime empacotado não inclui o Prisma, e o
+            // Copilot autentica pelo token do device flow, não pelo banco.
             state
                 .supervisor
                 .register(ServiceSpec {
