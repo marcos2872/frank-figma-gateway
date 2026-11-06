@@ -1,7 +1,9 @@
+mod ca;
 mod commands;
 mod events;
 mod logging;
 mod paths;
+mod platform;
 mod secrets;
 mod setup_store;
 mod state;
@@ -50,6 +52,14 @@ pub fn run() {
             commands::providers::provider_secret_status,
             commands::providers::provider_test,
             commands::providers::litellm_health,
+            commands::ca::ca_status,
+            commands::ca::ca_install,
+            commands::ca::ca_remove,
+            commands::ca::ca_export,
+            commands::proxy::proxy_status,
+            commands::proxy::proxy_start,
+            commands::proxy::proxy_stop,
+            commands::proxy::proxy_self_test,
         ])
         .setup(|app| {
             let data_dir = app.path().app_local_data_dir()?;

@@ -1339,6 +1339,9 @@ com uma instância LiteLLM real e Credential Manager pendentes de validação no
 
 ### F6 — CA local, proteção da chave e trust store do Windows
 
+**Status:** CA, DPAPI/cert store e comandos implementados; instalação real no Windows pendente de
+validação.
+
 **Objetivo:** gerar/gerenciar a CA e instalá-la/removê-la em `CurrentUser\Root` sem admin.
 
 **Depende de:** F1.
@@ -1383,6 +1386,9 @@ com uma instância LiteLLM real e Credential Manager pendentes de validação no
 ---
 
 ### F7 — Proxy MITM: túnel, MITM seletivo, rewrite, auth e streaming
+
+**Status:** servidor, self-test e comandos implementados; validação com o Figma real e casos
+HTTP/2/Upgrade pendentes no Windows.
 
 **Objetivo:** interceptar somente a inferência da Figma e encaminhar o resto intacto.
 

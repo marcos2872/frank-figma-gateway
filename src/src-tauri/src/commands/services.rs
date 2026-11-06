@@ -3,7 +3,8 @@ use crate::state::AppState;
 use ffg_core::error::UiError;
 use ffg_core::secrets::SecretError;
 use ffg_supervisor::{
-    allocate_port, HealthCheck, LogLine, ServiceName, ServiceSpec, ServiceStatus,
+    allocate_port, HealthCheck, HealthState, LogLine, ServiceName, ServiceSpec, ServiceState,
+    ServiceStatus,
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -19,7 +20,32 @@ pub struct SetupResult {
 
 #[tauri::command]
 pub async fn service_status(state: State<'_, AppState>) -> Result<Vec<ServiceStatus>, UiError> {
-    Ok(state.supervisor.status_all().await)
+    let mut statuses = state.supervisor.status_all().await;
+    let proxy = state
+        .proxy
+        .lock()
+        .map_err(|_| UiError::internal("proxy lock envenenado"))?
+        .as_ref()
+        .map(|handle| handle.status());
+    if let Some(proxy) = proxy {
+        for status in &mut statuses {
+            if status.name == ServiceName::Proxy {
+                status.state = if proxy.running {
+                    ServiceState::Running
+                } else {
+                    ServiceState::Stopped
+                };
+                status.port = Some(proxy.port);
+                status.health = if proxy.running {
+                    HealthState::Ok
+                } else {
+                    HealthState::Unknown
+                };
+                status.detail = proxy.last_error.clone();
+            }
+        }
+    }
+    Ok(statuses)
 }
 
 #[tauri::command]

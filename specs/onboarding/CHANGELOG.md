@@ -122,33 +122,61 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [ ] Validar Credential Manager e restart do LiteLLM no Windows.
 - [ ] Ligar os comandos ao wizard (F10).
 
+### F6 — CA local e trust store
+
+- [x] Novo módulo `ffg-proxy::ca`: CA raiz (2 anos), leaf por host (90 dias), SAN, server auth,
+  thumbprint SHA-1 e `rustls::ServerConfig` com ALPN h2/http1.1.
+- [x] Geração e reload da CA a partir de PEM; chave privada persistida protegida.
+- [x] `platform::CertStore`: WinCrypt em `CurrentUser\Root` (sem admin) e fallback em memória.
+- [x] `platform::FileProtector`: DPAPI no Windows e fallback para testes.
+- [x] `CaManager`: status, install, remove, export e cache da CA.
+- [x] Comandos `ca_status`, `ca_install`, `ca_remove` e `ca_export`.
+- [ ] Validar instalação/remoção no trust store real e DPAPI no Windows.
+- [ ] ACL do arquivo, remoção no uninstall e tratamento de política corporativa.
+
+### F7 — Proxy MITM
+
+- [x] Servidor seletivo: túnel CONNECT para hosts fora da lista; MITM apenas para `api.figma.com`.
+- [x] HTTP/1.1 e HTTP/2 via `hyper-util` auto; streaming SSE sem buffer.
+- [x] Rewrite `/ai-gateway/...` → LiteLLM, troca de `Authorization` pela master key e forward
+  não-IA para `https://api.figma.com`.
+- [x] Estatísticas (conexões, requisições de IA, primeira requisição) e erros.
+- [x] `self_test`: cliente com CA local atravessa o proxy e valida TLS + rewrite + LiteLLM.
+- [x] Comandos `proxy_status`, `proxy_start`, `proxy_stop` e `proxy_self_test`; `service_status`
+  reflete o proxy.
+- [x] Testes de túnel CONNECT e de MITM completo (reqwest + wiremock) com rewrite e auth.
+- [ ] Validar com o Figma real, HTTP/2 em produção, Upgrade/WebSocket e passthrough não-IA.
+- [ ] Integração de CA/env com o Figma (F8) e auto-start pelo onboarding (F10).
+
 ### Evidências locais (Linux)
 
 - `cargo fmt --all -- --check`
-- `cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p manifest-signer -p manifest-verify --all-targets -- -D warnings`
+- `cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy -p manifest-signer -p manifest-verify --all-targets -- -D warnings`
 - `cargo test -p ffg-core` — 115 testes passando.
 - `cargo test -p ffg-runtime` — 24 testes passando.
 - `cargo test -p ffg-supervisor` — 13 testes passando.
 - `cargo test -p ffg-litellm` — 8 testes passando.
+- `cargo test -p ffg-proxy` — 5 testes passando (CA, túnel e MITM com rewrite).
 - `cargo llvm-cov -p ffg-core --fail-under-lines 80` — 92,23% de linhas.
 - `cargo llvm-cov -p ffg-runtime --fail-under-lines 70` — 86,47% de linhas.
 - `cargo llvm-cov -p ffg-supervisor --fail-under-lines 70` — 75,44% de linhas.
 - `cargo llvm-cov -p ffg-litellm --fail-under-lines 70` — 87,39% de linhas.
+- `cargo llvm-cov -p ffg-proxy --fail-under-lines 70` — 78,73% de linhas.
 - `node scripts/manifest.mjs ...` — manifesto gerado e JSON validado.
 - `manifest-signer` + `manifest-verify` — assinatura e verificação testadas localmente.
 - `pnpm build`
 - `python3 scripts/check_docs.py` — 13 markdown, 4 JSON.
 - `cargo clippy -p frank-figma-gateway --all-targets --target x86_64-pc-windows-gnu -- -D warnings`
-  com `windres` stub (valida tipos/lints; recursos, keyring e link ficam para o CI Windows).
+  com stubs de `windres`/`gcc`/`ar` (valida tipos/lints; recursos, keyring e link ficam para o CI Windows).
 
 > O build completo do app Tauri não roda neste ambiente Linux por falta de `dbus-1`/WebKitGTK.
 > A validação do app fica pendente para o Windows, conforme combinado.
 
 ### Próximo passo
 
-- F6 — CA local, DPAPI e trust store do Windows.
-- F7 — proxy MITM: túnel, MITM seletivo, rewrite, auth e streaming.
-- F9 pode correr em paralelo: Postgres embutido + Copilot.
+- F8 — integração Figma: env em HKCU, detecção, instalação/remoção transacional e validação.
+- F9 — Postgres embutido + Copilot (pode correr em paralelo).
+- F10 — wizard completo, incluindo ligar CA/proxy/providers ao modal.
 - O shell do wizard (modal + carrossel) já foi adiantado; o conteúdo real de cada etapa entra junto
   com as fases que implementam os comandos correspondentes.
 
@@ -159,12 +187,13 @@ cd src
 pnpm install --frozen-lockfile
 pnpm build
 cargo fmt --all -- --check
-cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm --all-targets -- -D warnings
-cargo test -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm
+cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy --all-targets -- -D warnings
+cargo test -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy
 cargo llvm-cov -p ffg-core --fail-under-lines 80
 cargo llvm-cov -p ffg-runtime --fail-under-lines 70
 cargo llvm-cov -p ffg-supervisor --fail-under-lines 70
 cargo llvm-cov -p ffg-litellm --fail-under-lines 70
+cargo llvm-cov -p ffg-proxy --fail-under-lines 70
 cargo clippy -p frank-figma-gateway --all-targets -- -D warnings
 pnpm tauri build --no-bundle
 ```

@@ -1,11 +1,14 @@
 //! Shared application state managed by Tauri.
 
+use crate::ca::CaManager;
 use crate::paths::RuntimePaths;
+use crate::platform::{PlatformCertStore, PlatformFileProtector};
 use crate::secrets::PlatformSecretStore;
 use crate::setup_store::SetupStore;
 use ffg_core::manifest::{RuntimePolicy, TrustedKey};
 use ffg_core::secrets::SecretStore;
 use ffg_litellm::ConfigStore;
+use ffg_proxy::proxy::ProxyHandle;
 use ffg_runtime::RuntimeManager;
 use ffg_supervisor::Supervisor;
 use std::collections::HashMap;
@@ -19,10 +22,13 @@ pub struct AppState {
     pub supervisor: Arc<Supervisor>,
     pub secrets: Arc<dyn SecretStore>,
     pub litellm: ConfigStore,
+    pub ca: Arc<CaManager>,
+    pub proxy: Mutex<Option<ProxyHandle>>,
     pub operations: Mutex<HashMap<String, CancellationToken>>,
 }
 
 impl AppState {
+    #[allow(clippy::default_constructed_unit_structs)]
     pub fn new(paths: RuntimePaths) -> Result<Self, Box<dyn std::error::Error>> {
         let keys: Vec<TrustedKey> =
             serde_json::from_str(include_str!("../resources/keys/manifest-keys.json"))?;
@@ -42,6 +48,12 @@ impl AppState {
             supervisor: Arc::new(Supervisor::default()),
             secrets: Arc::new(PlatformSecretStore::default()),
             litellm: ConfigStore::new(paths.litellm_config_dir())?,
+            ca: Arc::new(CaManager::new(
+                paths.clone(),
+                Arc::new(PlatformCertStore::default()),
+                Arc::new(PlatformFileProtector::default()),
+            )),
+            proxy: Mutex::new(None),
             operations: Mutex::new(HashMap::new()),
         })
     }
