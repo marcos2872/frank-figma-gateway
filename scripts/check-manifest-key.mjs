@@ -8,9 +8,10 @@
 //   MANIFEST_KEY_ID=2026-01 MANIFEST_PUBLIC_KEY=<base64> node scripts/check-manifest-key.mjs
 
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const repoRoot = resolve(import.meta.dirname, "..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const keysFile = resolve(
   process.env.MANIFEST_KEYS_FILE ??
     resolve(repoRoot, "src/src-tauri/resources/keys/manifest-keys.json"),
