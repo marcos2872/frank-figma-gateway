@@ -1070,6 +1070,8 @@ O relatório não inclui prompt/resposta; só status, duração e erro sanitizad
 
 ### F1 — Núcleo puro: manifesto assinado, download/install plan, config, providers e journal
 
+**Status:** implementado no `ffg-core` (ver [`CHANGELOG.md`](CHANGELOG.md)); I/O real fica em F2/F3/F9.
+
 **Objetivo:** implementar toda a lógica que pode ser testada sem Windows, rede ou Tauri.
 
 **Depende de:** F0.
@@ -1078,18 +1080,18 @@ O relatório não inclui prompt/resposta; só status, duração e erro sanitizad
 
 | Caminho | Ação | Responsabilidade |
 |---|---|---|
-| `src/crates/core/src/manifest.rs` | alterar | Estender `RuntimeManifest`, `ComponentManifest` (`installedSize`, `entrypoint`, `versionArgs`), `verify_signature`, `verify_manifest`, `RuntimePolicy` |
-| `src/crates/core/src/download.rs` | criar | `DownloadPlan`, `ResumeState`, `RangeDecision`, `RetryPolicy`, `MirrorPlan`, erros puros |
+| `src/crates/core/src/manifest.rs` | alterar | Estender `RuntimeManifest`, `ComponentManifest` (`installedSize`, `entrypoint`, `versionArgs`), assinatura Ed25519 com janela de validade, `verify_manifest`, `RuntimePolicy` |
+| `src/crates/core/src/download.rs` | criar | `DownloadPlan`, `ResumeState`, `DownloadAction`, `RetryPolicy`, `MirrorPlan`, erros puros |
 | `src/crates/core/src/install.rs` | criar | `InstallPlan`, validação de path/zip, layout esperado, `ActiveRuntime`, rollback |
-| `src/crates/core/src/providers.rs` | criar | `ProviderKind`, `ProviderDescriptor`, `ProviderProfileInput`, validação de campos, catálogo |
-| `src/crates/core/src/litellm_config.rs` | criar | `GatewayConfig`, `ModelRoute`, `to_yaml`, validação de rotas/fallbacks |
+| `src/crates/core/src/providers.rs` | criar | Catálogo, `ProviderDescriptor`, `ProviderProfileInput`, validação de campos e secret refs (reusa `ProviderKind` do setup) |
+| `src/crates/core/src/litellm_config.rs` | criar | `generate_litellm_config`, validação de rotas/fallbacks e YAML determinístico |
 | `src/crates/core/src/env_plan.rs` | criar | `ProxyEnvPlan`, `EnvSnapshot`, merge de `NO_PROXY`, restore |
 | `src/crates/core/src/integration.rs` | criar | `IntegrationJournal`, ordem de passos, rollback, status, idempotência |
-| `src/crates/core/src/copilot.rs` | criar | `CopilotState`, `DeviceFlow`, `AuthStatus`, polling/timeout, mapeamento de erros |
+| `src/crates/core/src/copilot.rs` | criar | `DeviceFlow`, polling/timeout, transições de auth e mapeamento de erros (reusa `CopilotState`/`AuthStatus`) |
 | `src/crates/core/src/models.rs` | alterar | Validação de nomes públicos, rotas, fallback sem ciclo |
 | `src/crates/core/src/redaction.rs` | alterar | Casos de headers/URL/body; fixtures |
-| `src/crates/core/Cargo.toml` | alterar | `ed25519-dalek`, `base64`, `semver`, `serde_yaml`/`serde_yml`, `proptest` (dev) |
-| `src/crates/core/tests/fixtures/` | criar | Manifestos, assinaturas, YAML golden, setups v1, headers sensíveis |
+| `src/crates/core/Cargo.toml` | alterar | `ed25519-dalek`, `base64`, `semver`, `serde_yaml` |
+| `src/crates/core/tests/fixtures/` | criar | Manifesto de exemplo e YAML golden do LiteLLM |
 
 **Interfaces principais:**
 
@@ -1100,12 +1102,22 @@ pub fn verify_manifest(
     trusted_keys: &[TrustedKey],
     app_version: &str,
     policy: &RuntimePolicy,
+    now_epoch_seconds: u64,
 ) -> Result<RuntimeManifest, ManifestError>;
 
-pub fn plan_download(
-    component: &ComponentManifest,
+pub fn plan_download_action(
     resume: Option<&ResumeState>,
-) -> DownloadPlan;
+    expected_size: u64,
+) -> DownloadAction;
+
+impl DownloadPlan {
+    pub fn new(
+        component: ComponentId,
+        manifest: &ComponentManifest,
+        mirrors: Vec<String>,
+        resume: Option<&ResumeState>,
+    ) -> Result<Self, DownloadError>;
+}
 
 pub fn generate_litellm_config(settings: &ModelSettings) -> Result<String, ConfigError>;
 
@@ -1120,7 +1132,8 @@ pub fn plan_proxy_env(
 **Critérios de aceite:**
 
 - `cargo llvm-cov -p ffg-core --fail-under-lines 80` verde.
-- Assinatura válida aceita; bytes alterados, chave desconhecida, chave expirada e `minAppVersion` maior são rejeitados.
+- Assinatura válida aceita; bytes alterados, chave desconhecida, chave revogada, chave fora da
+  janela de validade e `minAppVersion` maior são rejeitados.
 - YAML golden para cada provider, com aliases e fallback; nenhum segredo no output.
 - Plano de download cobre 206/200/416/ETag/If-Range.
 - Plano de instalação rejeita path traversal, symlink e zip bomb.
@@ -1128,7 +1141,7 @@ pub fn plan_proxy_env(
 - Journal rollback na ordem inversa.
 - `cargo clippy -p ffg-core --all-targets -- -D warnings`.
 
-**Testes:** unitários + property tests para env/redaction/paths; fixtures de assinatura geradas com chave de teste em runtime; sem rede.
+**Testes:** unitários para env/redaction/paths; fixtures de assinatura geradas com chave de teste em runtime; sem rede.
 
 **Esforço:** 2–3 semanas.
 

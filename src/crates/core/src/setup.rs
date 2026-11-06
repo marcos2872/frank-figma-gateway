@@ -179,6 +179,8 @@ pub struct ModelRoute {
     #[serde(default)]
     pub api_base: Option<String>,
     #[serde(default)]
+    pub api_version: Option<String>,
+    #[serde(default)]
     pub extra: BTreeMap<String, String>,
 }
 

@@ -1,0 +1,16 @@
+model_list:
+- model_name: claude-opus-4-8
+  litellm_params:
+    model: github_copilot/claude-sonnet-5.5
+    litellm_credential_name: github-copilot
+- model_name: claude-haiku-4-5
+  litellm_params:
+    model: openrouter/anthropic/claude-haiku-4.5
+    api_key: os.environ/OPENROUTER_API_KEY
+router_settings:
+  fallbacks:
+  - claude-opus-4-8:
+    - claude-haiku-4-5
+  num_retries: 2
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

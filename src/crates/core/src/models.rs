@@ -11,6 +11,16 @@ pub fn is_claude_model_name(name: &str) -> bool {
     name.starts_with("claude-") || name.starts_with("anth-")
 }
 
+/// Public names are shown to Claude Code; they must keep the `claude-`/`anth-`
+/// prefix and contain only identifier-safe characters.
+pub fn is_valid_public_name(name: &str) -> bool {
+    !name.is_empty()
+        && is_claude_model_name(name)
+        && name.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+        })
+}
+
 pub fn default_models() -> Vec<&'static str> {
     vec![DEFAULT_OPUS_MODEL, DEFAULT_HAIKU_MODEL]
 }
@@ -37,5 +47,15 @@ mod tests {
             default_models(),
             vec![DEFAULT_OPUS_MODEL, DEFAULT_HAIKU_MODEL]
         );
+    }
+
+    #[test]
+    fn validates_public_names() {
+        assert!(is_valid_public_name("claude-opus-4-8"));
+        assert!(is_valid_public_name("anth-model.v2"));
+        assert!(!is_valid_public_name(""));
+        assert!(!is_valid_public_name("gpt-5"));
+        assert!(!is_valid_public_name("claude opus"));
+        assert!(!is_valid_public_name("claude/opus"));
     }
 }

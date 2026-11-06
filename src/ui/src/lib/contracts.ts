@@ -126,6 +126,7 @@ export interface ModelRoute {
   credentialName?: string | null;
   apiKeyEnv?: string | null;
   apiBase?: string | null;
+  apiVersion?: string | null;
   extra: Record<string, string>;
 }
 
