@@ -18,7 +18,37 @@ pub fn setup_get_state(state: State<'_, AppState>) -> Result<SetupState, UiError
     if let Some(warning) = result.warning {
         log::warn!("{}", warning.message);
     }
-    Ok(result.state)
+    let mut setup = result.state;
+    if reconcile_runtime(&state, &mut setup) {
+        store.save(&mut setup).map_err(UiError::from)?;
+    }
+    Ok(setup)
+}
+
+/// `active.json` é a fonte de verdade do runtime. Se o `setup.json` ficou para
+/// trás (app antigo, crash no meio), a leitura corrige antes de devolver à UI.
+fn reconcile_runtime(state: &AppState, setup: &mut SetupState) -> bool {
+    let Ok(active) = state.runtime.active() else {
+        return false;
+    };
+    let mut changed = false;
+
+    if let Some(litellm) = active.litellm {
+        if setup.runtime.active_litellm.as_deref() != Some(litellm.version.as_str()) {
+            setup.runtime.litellm_version = Some(litellm.version.clone());
+            setup.runtime.active_litellm = Some(litellm.version);
+            changed = true;
+        }
+    }
+    if let Some(pgsql) = active.pgsql {
+        if setup.runtime.active_pgsql.as_deref() != Some(pgsql.version.as_str()) {
+            setup.runtime.pgsql_version = Some(pgsql.version.clone());
+            setup.runtime.active_pgsql = Some(pgsql.version);
+            changed = true;
+        }
+    }
+
+    changed
 }
 
 #[tauri::command]
