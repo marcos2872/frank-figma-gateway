@@ -4,8 +4,8 @@
 
 # frank-figma-gateway
 
-> Gateway local que permite ao Figma desktop usar modelos de LLM de qualquer provedor — OpenAI,
-> Anthropic, Google ou um modelo local — sem alterar o app.
+> App desktop **open source (MIT)** que permite ao Figma usar modelos de LLM de qualquer provedor —
+> Copilot, OpenRouter, Azure AI, Anthropic, OpenAI ou um modelo local — sem alterar o app.
 
 ## O que é
 
@@ -21,33 +21,58 @@ O princípio central é a transparência: **nada de fork do bundle, nada de alte
 contornar autenticação ou licenciamento**. A intervenção é só de rede, e o uso exige uma conta Figma
 com IA habilitada.
 
+O produto é um app **Tauri** que fica no tray, configura a integração com o Figma e usa o
+**[LiteLLM](https://github.com/BerriAI/litellm) Proxy** (versão fixada) como engine de providers.
+O instalador é mínimo; LiteLLM e Postgres são baixados no onboarding.
+
 ## Como funciona
 
 ```mermaid
 flowchart LR
-    F[Figma desktop<br/>figcode + Claude Code] -->|HTTPS + SSE<br/>Anthropic Messages| G[Gateway local<br/>127.0.0.1]
-    G -->|tradução| P[Provedor escolhido]
-    P -->|resposta| G
-    G -->|mesmo formato| F
+    F[Figma desktop<br/>figcode + Claude Code] -->|HTTPS + SSE| A[App Tauri<br/>proxy MITM]
+    A -->|rewrite| L[LiteLLM sidecar<br/>v1.108.1]
+    L -->|provider| P[Copilot / OpenRouter<br/>Azure / Anthropic / local]
+    P -->|resposta| L
+    L -->|SSE Anthropic| A
+    A -->|mesmo formato| F
+    L -.-> PG[(Postgres<br/>opcional)]
 ```
 
+## Stack
+
+- **App:** Tauri v2 (Rust) + React/Vite (previsto)
+- **Proxy:** Rust (MITM seletivo em `api.figma.com`)
+- **Engine:** LiteLLM Proxy `v1.108.1` (sidecar)
+- **Banco:** Postgres embutido (perfil Copilot); SQLite apenas para estado do app
+- **Integração:** CA local + `HTTPS_PROXY`, sem patch no Figma
+
 ## Documentação
+
+Índice completo em [docs/index.md](docs/index.md).
 
 | Documento | Conteúdo |
 |---|---|
 | [Arquitetura da IA no Figma](docs/figma-llm-architecture.md) | Como o app usa LLM hoje: `figcode`, Claude Code, AI Gateway, protocolos e evidências |
+| [Arquitetura do gateway](docs/gateway-architecture.md) | Proxy MITM, LiteLLM sidecar, Postgres, roteamento, segurança e testes |
+| [App desktop (Tauri)](docs/desktop-app.md) | Janelas, tray, autostart, close-to-tray, supervisão e empacotamento |
+| [Instalação e onboarding](docs/onboarding.md) | Instalador mínimo, tour de configuração e download de componentes |
+| [Integração Figma + gateway](docs/figma-gateway-integration.md) | Topologia, interceptação, wizard, tray, troubleshooting e testes |
 | [PRD do gateway](docs/gateway-prd.md) | Requisitos, entregáveis por milestone, critérios de aceite, riscos e métricas |
-| [Arquitetura do gateway](docs/gateway-architecture.md) | Proxy, MITM seletivo, IR canônica, adapters, SSE, configuração e segurança |
-| [Integração Figma + gateway](docs/figma-gateway-integration.md) | Topologia, opções de interceptação, instalação no Windows, fallback e troubleshooting |
 
 ## Status
 
-Mapeamento concluído: a ideia é **viável**. A inferência é um contrato padrão Anthropic, o endpoint é
-fixo (`api.figma.com/ai-gateway/llm/provider/universal`), o TLS é configurável e não há certificate
-pinning — nenhum patch no app é necessário.
+Mapeamento concluído e arquitetura definida: **viável**. A inferência é um contrato padrão Anthropic,
+o endpoint é fixo (`api.figma.com/ai-gateway/llm/provider/universal`), o TLS é configurável e não há
+certificate pinning — nenhum patch no app é necessário.
 
 O próximo passo é a prova de conceito: proxy em modo passthrough, captura de `/v1/messages` e
-`count_tokens`, e depois o tradutor para o primeiro provedor.
+`count_tokens`, e depois o LiteLLM sidecar com o primeiro provedor.
+
+## Licença
+
+Distribuído sob **MIT** — ver [LICENSE](LICENSE). Atribuições de terceiros (LiteLLM, Tauri, Postgres,
+React, Vite) em [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) e
+[licenses/litellm-LICENSE](licenses/litellm-LICENSE).
 
 ## Escopo
 

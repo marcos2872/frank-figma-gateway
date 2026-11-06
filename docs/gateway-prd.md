@@ -1,182 +1,176 @@
 # PRD — frank-figma-gateway
 
-> Gateway local que substitui a perna de inferência do agente de IA do Figma desktop por qualquer
-> provedor de LLM, sem alterar o app, o bundle ou a UI.
+> Gateway local + app desktop que permite ao Figma usar os modelos de LLM que o usuário escolher,
+> sem alterar o app. Engine: LiteLLM Proxy fixado em `v1.108.1`, com app Tauri e instalador mínimo.
 
 ## 1. Contexto
 
-O Figma desktop 126.11.7 executa o recurso de IA (Make Local) através de um processo separado,
-`figcode`, que embute o Claude Code e envia requisições no formato **Anthropic Messages API** para
-`https://api.figma.com/ai-gateway/llm/provider/universal`. Detalhes em
-[figma-llm-architecture.md](figma-llm-architecture.md).
+O Figma desktop 126.11.7 executa a IA (Make Local) via `figcode`, que embute o Claude Code e chama
+`https://api.figma.com/ai-gateway/llm/provider/universal` no formato **Anthropic Messages** com SSE.
+Detalhes em [figma-llm-architecture.md](figma-llm-architecture.md).
 
-Hoje o usuário não tem como escolher o provedor/modelo: o token é escopado pela Figma e o modelo é
-roteado pelo gateway dela. A proposta é inserir um gateway local nessa perna, preservando todo o
-resto do fluxo (autenticação, UI, ferramentas, streaming).
+A proposta é inserir um proxy local nessa perna, reescrevendo para um **LiteLLM Proxy** que traduz
+para o provider escolhido. O app Tauri instala, configura e mantém tudo rodando no tray.
 
 ## 2. Problema
 
-- Não existe "BYO model" no Figma desktop.
-- Quem quer usar um modelo específico (OpenAI, Anthropic direto, Google, modelo local) não consegue.
-- O caminho de inferência é fechado, mas **tecnicamente interceptável**: é HTTPS/SSE padrão, com trust
-  de TLS configurável e sem pinning.
+- Não existe “BYO model” no Figma desktop.
+- O caminho de inferência é fechado, mas é HTTPS/SSE padrão, sem pinning e com trust configurável.
+- Construir a camada de providers do zero seria caro e frágil.
 
 ## 3. Objetivos
 
-1. Permitir que o recurso de IA do Figma use um provedor/modelo configurado pelo usuário, sem patch.
-2. Preservar 100% do comportamento observável pelo app: streaming, tool calls, erros, limites.
-3. Ser instalável e reversível em Windows, com configuração local e segredos fora do app.
-4. Sobreviver a atualizações do `figcode` sem recompilar nada.
+1. Permitir que a IA do Figma use Copilot, OpenRouter, Azure AI, Anthropic, OpenAI, Gemini ou modelo
+   local, sem patch no app.
+2. Instalar leve e baixar componentes sob demanda.
+3. Oferecer onboarding guiado, tray, autostart e close-to-tray.
+4. Reusar o LiteLLM como engine de providers, com versão fixada.
+5. Suportar Copilot via OAuth por usuário com Postgres embutido.
+6. Ser reversível: rollback de CA/env e desinstalação limpa.
 
 ### Não-objetivos
 
-- Não contornar autenticação, licenciamento ou DRM.
-- Não funcionar sem uma conta Figma com IA habilitada.
-- Não cobrir outras superfícies de IA que rodam no servidor da Figma.
-- Não modificar `app.asar`, binários ou UI.
-- Não redistribuir o app da Figma.
+- Contornar autenticação, licenciamento ou DRM.
+- Funcionar sem conta Figma com IA habilitada.
+- Cobrir IA que roda no servidor da Figma fora do `figcode`.
+- Redistribuir o app da Figma ou o Claude Code.
+- Alterar `app.asar` ou binários.
 
 ## 4. Personas e casos de uso
 
 | Persona | Caso de uso |
 |---|---|
-| Designer/dev com acesso a IA no Figma | Usar o Make com um modelo local ou de outro provedor |
-| Time com restrição de dados | Direcionar a inferência para um provedor aprovado (ex.: Azure OpenAI) |
-| Pesquisador | Comparar modelos no mesmo fluxo, sem mudar de ferramenta |
-| Usuário offline/laboratório | Apontar para um servidor local compatível com OpenAI |
+| Designer/dev com IA no Figma | Usar Copilot ou modelo local no Make |
+| Time com restrição de dados | Direcionar para Azure/Foundry aprovado |
+| Pesquisador | Comparar modelos no mesmo fluxo |
+| Usuário offline/lab | Servidor local OpenAI-compatible |
 
 ## 5. Requisitos funcionais
 
-Prioridade: **M** (must), **S** (should), **C** (could).
-
 | ID | Requisito | Prioridade | Critério de aceite |
 |---|---|---|---|
-| FR-01 | Interceptar HTTPS de `api.figma.com` para o processo `claude` sem alterar binários | M | Make funciona em modo passthrough com o proxy ativo |
-| FR-02 | Encaminhar tudo que não seja `/ai-gateway/llm/provider/universal/*` sem alteração | M | Nenhuma regressão em outras chamadas a `api.figma.com` |
-| FR-03 | Aceitar `POST /v1/messages` (streaming e não-streaming) no formato Anthropic | M | Resposta e SSE válidos; agente renderiza tokens |
-| FR-04 | Aceitar `POST /v1/messages/count_tokens` | M | Contagem retornada no formato Anthropic, com erro/fallback definido |
-| FR-05 | Traduzir Anthropic → OpenAI Chat Completions | M | Texto, system, tools e streaming funcionam no Make |
-| FR-06 | Traduzir Anthropic → Anthropic (passthrough de provedor) | M | Valida o pipeline com provedor compatível |
-| FR-07 | Traduzir Anthropic → Google Gemini | S | Texto e tools básicos |
-| FR-08 | Suportar provedor OpenAI-compatible local (Ollama, vLLM, LM Studio) | S | Base URL configurável |
-| FR-09 | Mapear modelo lógico → provedor/modelo real por configuração | M | `claude-opus-4-8` pode apontar para qualquer modelo |
-| FR-10 | Fallback entre provedores/modelos em erro | S | Requisição cai para o secundário sem quebrar o turno |
-| FR-11 | Normalizar erros para o formato Anthropic | M | Retry/refresh do agente não quebram |
-| FR-12 | Suportar tool use / tool result (incl. MCP) na tradução | M | Agente executa ferramentas e continua o turno |
-| FR-13 | Remover/emular `cache_control`, `thinking` e betas incompatíveis | M | Nenhum 400 por campo desconhecido |
-| FR-14 | Configuração local (arquivo + env), com hot reload | M | Alterar mapa de modelos sem reiniciar o app |
-| FR-15 | Chaves de API fora do app (env ou keychain), com redaction em logs | M | Nenhum segredo em log/arquivo do projeto |
-| FR-16 | Modo passthrough total e kill switch | M | Desligar o gateway volta o app ao comportamento original |
-| FR-17 | Instalador/desinstalador Windows (CA + proxy) | S | Instala, valida e remove sem deixar lixo |
-| FR-18 | Observabilidade local (log estruturado, métricas por request) | S | Latência, tokens, status e modelo por request |
-| FR-19 | Health check e detecção de gateway indisponível | S | App não fica travado; erro claro |
-| FR-20 | Preservar headers de lifecycle/support request quando útil | C | Rastreabilidade no provedor |
+| FR-01 | Interceptar HTTPS de `api.figma.com` sem alterar binários | M | Make funciona com o proxy |
+| FR-02 | Encaminhar rotas não-IA intactas | M | Nenhuma regressão em `api.figma.com` |
+| FR-03 | Reescrever path e `Authorization` para o LiteLLM | M | Requisição chega ao LiteLLM com master key |
+| FR-04 | Aceitar `/v1/messages` e `count_tokens` no formato Anthropic | M | Streaming, tools e erros corretos |
+| FR-05 | Rodar LiteLLM como sidecar com versão fixada | M | `v1.108.1` verificada por hash |
+| FR-06 | Configurar OpenRouter/Azure/Anthropic/OpenAI via API key | M | Teste de conexão OK |
+| FR-07 | Suportar GitHub Copilot via OAuth + Postgres | M | “Connected” e chamada OK |
+| FR-08 | Mapear `claude-opus-4-8`/`claude-haiku-4-5` para provider/modelo | M | Alias aplicado sem mudar a UI |
+| FR-09 | Fallback entre modelos/providers | S | Turno continua no secundário |
+| FR-10 | Instalador mínimo + download sob demanda | M | Instalador < 30 MB; runtime baixado no onboarding |
+| FR-11 | Onboarding em passos com retomada | M | Fechar/reabrir retoma no passo pendente |
+| FR-12 | Wizard Figma: CA + env + proxy + teste | M | Um clique instala e valida |
+| FR-13 | Reiniciar Figma pelo wizard | S | Detecta processo e reabre |
+| FR-14 | Tray com status e close-to-tray | M | X esconde; app continua servindo |
+| FR-15 | Autostart com o sistema, oculto | M | Sobe no login e fica no tray |
+| FR-16 | Single instance | S | Segunda execução foca o dashboard |
+| FR-17 | Rollback da integração | M | Remove CA/env e volta ao normal |
+| FR-18 | Importação offline de componentes | S | ZIP local validado por hash |
+| FR-19 | Logs e health dos processos | S | Dashboard mostra estado e logs |
+| FR-20 | Credenciais no Credential Manager/DPAPI | M | Nenhum segredo em texto plano |
+| FR-21 | Atualização do app e dos runtimes com rollback | S | Versão anterior preservada |
 
 ## 6. Requisitos não-funcionais
 
 | ID | Requisito | Alvo |
 |---|---|---|
-| NFR-01 | Latência adicional | ≤ 50 ms p95 no primeiro byte, excluindo provedor |
-| NFR-02 | Streaming | Primeiro delta repassado sem buffering; backpressure correto |
-| NFR-03 | Concorrência | ≥ 4 streams simultâneos sem degradação |
-| NFR-04 | Segurança | Escuta só em `127.0.0.1`; CA local com validade curta e remoção fácil |
-| NFR-05 | Privacidade | Sem telemetria externa; logs com prompts desligados por padrão |
-| NFR-06 | Portabilidade | Windows 10/11 x64 como alvo primário; macOS/Linux como secundário |
-| NFR-07 | Robustez | Falha de provedor não derruba o processo; timeout e retry limitados |
-| NFR-08 | Compatibilidade | Funcionar com o `figcode` da versão atual e degradar com aviso em mudanças de path |
+| NFR-01 | Instalador | ≤ 30 MB |
+| NFR-02 | First-run (download + config) | ≤ 10 min em rede típica |
+| NFR-03 | Latência adicional no proxy | ≤ 50 ms p95 no primeiro byte |
+| NFR-04 | Streaming | Sem buffering; backpressure correto |
+| NFR-05 | Concorrência | ≥ 4 streams simultâneos |
+| NFR-06 | Segurança | Loopback, sem admin, sem telemetria |
+| NFR-07 | Robustez | Crash de sidecar não derruba o app |
+| NFR-08 | Compatibilidade | Figma 126.11.7; degradar com aviso em versões novas |
 
 ## 7. Entregáveis
 
 ### M0 — Descoberta e captura
 
-- Proxy de captura com CA local.
-- Relatório com corpo, headers e sequência SSE reais de `/v1/messages` e `count_tokens`.
-- **Saída**: `docs/capturas/` com amostras redigidas + confirmação do host/path.
+- Proxy de captura, corpo/headers/SSE reais, confirmação do host/path.
+- **Saída:** amostras redigidas + relatório.
 
-### M1 — Passthrough
+### M1 — Casca Tauri
 
-- Proxy HTTPS com MITM seletivo de `api.figma.com`.
-- Encaminhamento intacto de todo o resto.
-- Make funcionando com o gateway no meio.
-- **Saída**: binário + instruções de instalação; teste de regressão manual.
+- Tray, close-to-tray, autostart, single-instance, dashboard vazio, logs.
+- **Saída:** app instalável que roda no tray.
 
-### M2 — Ingresso Anthropic + IR
+### M2 — Sidecar LiteLLM + download
 
-- Parser de `/v1/messages` e `/v1/messages/count_tokens`.
-- Modelo intermediário canônico (IR) e encoder SSE.
-- Adapter Anthropic direto (passthrough de provedor).
-- **Saída**: testes de contrato com fixtures reais.
+- Manifesto assinado, download/resume/verify/extract atômico.
+- Supervisor com health e restart.
+- **Saída:** LiteLLM `v1.108.1` rodando sob o app.
 
-### M3 — Adapter OpenAI
+### M3 — Proxy MITM + rewrite
 
-- Tradução request/response e streaming.
-- Tool use/tool result.
-- Normalização de erros e `stop_reason`.
-- **Saída**: e2e com o Make usando um modelo OpenAI.
+- CA local, MITM seletivo, rewrite de path/auth, passthrough.
+- **Saída:** Make em modo passthrough e em modo traduzido.
 
-### M4 — Roteamento e fallback
+### M4 — Providers por API key
 
-- Mapa de modelos, aliases, fallback e timeouts.
-- Config com hot reload.
-- **Saída**: exemplo de config + testes de falha.
+- OpenRouter, Azure AI, Anthropic, OpenAI, Gemini; teste de conexão.
+- Mapa de modelos e fallback.
+- **Saída:** e2e com provider real.
 
-### M5 — Provedores adicionais
+### M5 — Copilot
 
-- Gemini e OpenAI-compatible local.
-- **Saída**: matriz de compatibilidade.
+- Postgres embutido, credential OAuth, connect flow, refresh, erros de plano.
+- **Saída:** Make usando Copilot.
 
-### M6 — Empacotamento e operação
+### M6 — Onboarding
 
-- Instalador Windows (CA, proxy, serviço/tray), desinstalador.
-- Logs, métricas, health check, kill switch.
-- **Saída**: release + guia de troubleshooting.
+- Tour completo, retomada, casos de borda, importação offline.
+- **Saída:** first-run de ponta a ponta.
 
-### M7 — Documentação e validação
+### M7 — Empacotamento e release
 
-- Guia do usuário, arquitetura final, limitações e avisos legais.
-- **Saída**: docs completos + relatório de validação.
+- Instalador assinado, updater, desinstalador, diagnóstico.
+- **Saída:** release + guia de troubleshooting.
 
 ## 8. Métricas de sucesso
 
 | Métrica | Meta |
 |---|---|
-| Turnos completos sem erro de contrato | ≥ 99% |
-| Streams com primeiro token em < 1 s (rede local) | ≥ 95% |
-| Tool calls traduzidas com sucesso | ≥ 98% |
+| First-run concluído sem suporte | ≥ 90% |
+| Turnos sem erro de contrato | ≥ 99% |
+| Tool calls traduzidas | ≥ 98% |
+| Falhas de download/hash | < 1% |
 | Regressões em tráfego não-IA | 0 |
-| Tempo de instalação/desinstalação | < 5 min |
+| Instalação/desinstalação | < 5 min |
 
 ## 9. Riscos e mitigação
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| Tradução de tool calls divergir | Alto | Fixtures reais + testes de contrato + fallback |
-| `cache_control`/thinking quebrarem o provedor | Médio | Sanitização por adapter |
-| Mudança de path/host no figcode | Alto | Detecção de versão + regra configurável + aviso |
-| MITM afetar outras APIs da Figma | Alto | Interceptar só o path de IA; túnel para o resto |
-| CA local mal instalada | Médio | Diagnóstico (`/health`, teste de TLS) e rollback |
-| Uso indevido / ToS | Alto | Não contornar auth; exigir entitlement; aviso legal |
-| Vazamento de prompt em log | Alto | Redaction e log desligado por padrão |
+| Postgres embutido (lifecycle/migrações) | Alto | Supervisor, backup antes de update, teste de upgrade |
+| Tradução de tool calls | Alto | Fixtures reais + matriz de compatibilidade + fallback |
+| Download/artefato corrompido | Médio | Hash + assinatura + rollback |
+| CA/política corporativa | Médio | Diagnóstico e instalação manual documentada |
+| LiteLLM supply chain | Alto | Versão fixada (`v1.108.1`), hash, nunca `v1.107.0` |
+| Mudança de path no figcode | Alto | Regra configurável + detecção de versão |
+| ToS de Copilot/assinaturas | Alto | Não contornar auth; aviso legal; validar uso |
+| Tamanho do runtime | Médio | Download sob demanda; perfil leve sem Postgres |
 
 ## 10. Dependências
 
-- Figma desktop com IA habilitada (feature flag `desktop_make_local_enabled`).
-- Conta com permissão para o Make Local.
-- `figcode` baixado e atualizado pelo próprio app.
-- Windows para o alvo primário.
+- Figma desktop com IA habilitada (`desktop_make_local_enabled`).
+- Conta/plano para o provider escolhido.
+- Windows 10/11 x64 + WebView2.
+- Internet no first-run (ou pacote offline).
 
 ## 11. Questões em aberto
 
-1. O gateway precisa responder `count_tokens` com precisão ou pode aproximar?
-2. Quais betas o Claude Code envia no fluxo Make e quais são obrigatórios?
-3. O host/path muda entre canais stable/staging/gov?
-4. Como o agente reage a `stop_reason` e erros traduzidos?
-5. Vale expor um seletor de modelo próprio (exige patch de UI) ou apenas config?
-6. Qual o comportamento esperado quando o token da Figma expira no meio do stream?
+1. Onde publicar os artefatos (GitHub Releases, S3, ambos)?
+2. Copilot no first-run ou em configuração avançada?
+3. Permitir pular o passo do Figma?
+4. Assinatura de código do instalador/app?
+5. Idioma do wizard no MVP (pt-BR ou i18n)?
+6. Fail-open vs. fail-closed ao perder o LiteLLM?
 
 ## 12. Fora de escopo
 
-- Burlar limites de plano ou autenticação.
-- Suportar IA que não passa pelo `figcode`.
-- Reescrever prompts de sistema ou ferramentas do agente.
-- Distribuir binários da Figma ou do Claude Code.
+- Burlar limites/autenticação.
+- Reescrever prompts ou ferramentas do agente.
+- Suportar IA fora do caminho do `figcode`.
+- Distribuir binários da Figma/Claude Code.

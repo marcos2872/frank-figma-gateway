@@ -1,352 +1,184 @@
 # Arquitetura — Gateway
 
-> Arquitetura **proposta** para o `frank-figma-gateway`. O app da Figma é o cliente existente; este
-> documento descreve o processo local que se coloca na perna de inferência e traduz o contrato.
-> Requisitos e entregáveis estão em [gateway-prd.md](gateway-prd.md).
+> O gateway é a camada local que intercepta a inferência do Figma e a entrega ao **LiteLLM Proxy**,
+> que faz a tradução para o provedor escolhido. O app desktop (Tauri) supervisiona os processos.
+> Ver [desktop-app.md](desktop-app.md) e [onboarding.md](onboarding.md).
 
 ## 1. Princípios
 
-1. **Transparência total** — o cliente (`figcode`/`claude`) não pode perceber a troca.
-2. **Streaming primeiro** — nada de bufferizar a resposta inteira.
-3. **Fidelidade de contrato** — erros, `stop_reason`, tool calls e contagem de tokens no formato
-   Anthropic.
-4. **Isolamento por adapter** — cada provedor em um módulo; o núcleo não conhece SDK de fornecedor.
-5. **Local por padrão** — escuta só em loopback; nenhuma telemetria externa.
-6. **Passthrough como cidadão de primeira classe** — tudo que não é IA passa intacto; modo
-   passthrough total disponível.
+1. **Transparência** — o figcode/Claude Code não percebe a troca.
+2. **Reuso** — a camada de providers é o LiteLLM; não construímos adapters próprios.
+3. **Streaming primeiro** — SSE repassado sem buffering.
+4. **Local por padrão** — loopback, sem telemetria externa.
+5. **Versão fixada** — LiteLLM `v1.108.1`; atualização é release nossa.
+6. **Passthrough** — tudo que não é IA passa intacto.
 
 ## 2. Componentes
 
 ```mermaid
-flowchart TB
-    subgraph Cliente
-        C[claude / figcode]
-    end
-
-    subgraph Gateway local
-        P[Proxy HTTPS<br/>CONNECT + MITM seletivo]
-        CA[Gerenciador de CA]
-        R[Roteador de host/path]
-        I[Ingresso Anthropic<br/>/v1/messages, count_tokens]
-        N[Normalizador<br/>Anthropic → IR]
-        MR[Roteador de modelos<br/>mapa + fallback]
-        A1[Adapter Anthropic]
-        A2[Adapter OpenAI]
-        A3[Adapter Gemini]
-        A4[Adapter OpenAI-compatible]
-        S[Encoder SSE<br/>IR → eventos Anthropic]
-        TC[Contador de tokens]
-        CFG[Config + secrets]
-        OBS[Logs / métricas / health]
-        CP[Controle local<br/>CLI / tray]
-    end
-
-    subgraph Externo
-        F[api.figma.com<br/>rotas não-IA]
-        P1[Provedor escolhido]
-    end
-
-    C -->|HTTPS api.figma.com| P
-    P -->|path não-IA| F
-    P -->|/ai-gateway/*| I
-    P --> CA
-    I --> N --> MR
-    MR --> A1 & A2 & A3 & A4
-    A1 & A2 & A3 & A4 --> S
-    S --> P
-    TC --> I
-    CFG --> MR
-    OBS --> I
-    CP --> CFG
+flowchart LR
+    F[figcode / claude] -->|HTTPS api.figma.com| P[Proxy MITM<br/>127.0.0.1:8787]
+    P -->|path não-IA| R[api.figma.com real]
+    P -->|rewrite + auth| L[LiteLLM Proxy<br/>127.0.0.1:4000]
+    L -->|provider| X[Copilot / OpenRouter<br/>Azure / Anthropic / local]
+    L --> PG[(Postgres<br/>opcional)]
 ```
 
-### 2.1 Proxy e MITM
-
-- Escuta em `127.0.0.1:<porta>` como **proxy HTTP** (método `CONNECT`).
-- Para hosts que não sejam `api.figma.com`, faz **túnel TCP puro** (não descriptografa).
-- Para `api.figma.com`, descriptografa com certificado emitido pela CA local e:
-  - se o path casa com `/ai-gateway/llm/provider/universal/*`, entrega ao ingresso;
-  - caso contrário, **reencaminha** a requisição ao host real e devolve a resposta sem alteração.
-- O certificado apresentado tem SAN `api.figma.com` (e variantes de ambiente configuradas).
-- A CA local é gerada no primeiro uso, com validade curta e remoção documentada.
-
-> Alternativa sem proxy: `hosts` + reverse proxy na porta 443. É mais invasiva (afeta todo o host),
-> por isso o proxy é a opção recomendada. Ver [figma-gateway-integration.md](figma-gateway-integration.md).
-
-### 2.2 Ingresso Anthropic
-
-Expõe, para o proxy, os endpoints que o Claude Code usa:
-
-| Endpoint | Comportamento |
+| Componente | Responsabilidade |
 |---|---|
-| `POST /v1/messages` | Converte para IR, aplica rota de modelo, chama adapter, devolve JSON ou SSE |
-| `POST /v1/messages/count_tokens` | Usa o contador do adapter ou um estimador local |
-| `GET /health` | Estado do gateway, versão, provedores e último erro |
+| Proxy MITM | TLS seletivo em `api.figma.com`, rewrite de path e `Authorization`, túnel para o resto |
+| CA local | Emitir o certificado de `api.figma.com` e ser confiada pelo Windows |
+| LiteLLM Proxy | Ingress Anthropic (`/v1/messages`, `count_tokens`), tradução, streaming, fallback, retry |
+| Postgres | Necessário para OAuth do Copilot (e recursos de DB do LiteLLM) |
+| App Tauri | Ciclo de vida, onboarding, tray, config e logs |
 
-Responsabilidades:
+## 3. Por que LiteLLM e o que não construímos
 
-- Validar o corpo mínimo (model, messages, max_tokens).
-- Extrair `stream` e negociar `Accept`.
-- Preservar/ignorar headers do cliente conforme a política.
-- Garantir que o `Authorization` da Figma **não** vaze para o provedor.
+O LiteLLM já entrega:
 
-### 2.3 Normalizador e IR
+- `POST /v1/messages` no formato Anthropic e `POST /v1/messages/count_tokens`;
+- tradução para 100+ providers;
+- streaming SSE, fallback, retry, load balancing;
+- catálogo de modelos, descoberta (`/v1/models`), custos e logs;
+- suporte documentado a Claude Code e ao Copilot via OAuth.
 
-O núcleo trabalha com um **modelo intermediário canônico**. Nenhum adapter vê JSON específico de
-outro provedor.
+**Não construímos:** adapters por provider, IR canônica, encoder SSE, contador de tokens, retry e
+roteamento. Isso reduz o nosso código à camada específica da Figma.
 
-```text
-CanonicalRequest
-├── model: string                # nome lógico recebido (ex.: claude-opus-4-8)
-├── system: Block[]
-├── messages: Message[]          # role: user | assistant
-├── tools: ToolDef[]
-├── toolChoice: auto | any | tool(name)
-├── maxTokens: number
-├── temperature?: number
-├── stream: boolean
-└── metadata?: Record<string, string>
+## 4. Perfis de execução
 
-Message
-├── role
-└── content: Block[]
+| Perfil | Providers | Postgres | Quando |
+|---|---|---|---|
+| **Leve** | OpenRouter, Azure AI, Anthropic, OpenAI, Gemini, local | Não | padrão |
+| **Copilot** | Tudo do leve + GitHub Copilot | Sim (embutido) | quando o usuário conecta Copilot |
 
-Block (união)
-├── text { text }
-├── image { mediaType, data|url }
-├── tool_use { id, name, input }
-├── tool_result { toolUseId, content, isError }
-└── thinking { text, signature? }   # pode ser descartado por adapter
+O Copilot exige Postgres porque o LiteLLM só aceita **Per-user GitHub OAuth** para esse provider e
+armazena o token no banco.
 
-ToolDef { name, description, inputSchema }
-
-CanonicalEvent (streaming)
-├── message_start { id, model, usage? }
-├── content_block_start { index, block }
-├── content_block_delta { index, delta }
-├── content_block_stop { index }
-├── message_delta { stopReason, usage }
-└── message_stop
-```
-
-Regras de normalização:
-
-- `cache_control` é removido do IR e reaplicado apenas no adapter Anthropic, quando suportado.
-- Blocos `thinking` são preservados no IR, mas o adapter decide descartar/emular.
-- `tool_result` com conteúdo multimodal é achatado para texto quando o provedor não suporta.
-- `system` é uma lista de blocos; adapters que só aceitam string concatenam com separador estável.
-
-### 2.4 Roteador de modelos
-
-```yaml
-routes:
-  claude-opus-4-8:
-    provider: openai
-    model: gpt-5.2
-    fallback:
-      - provider: anthropic
-        model: claude-opus-4-8
-  claude-haiku-4-5:
-    provider: local
-    model: qwen3-8b
-    baseUrl: http://127.0.0.1:11434/v1
-
-defaults:
-  provider: anthropic
-  model: claude-opus-4-8
-
-providers:
-  anthropic:
-    baseUrl: https://api.anthropic.com
-    apiKeyEnv: ANTHROPIC_API_KEY
-  openai:
-    baseUrl: https://api.openai.com/v1
-    apiKeyEnv: OPENAI_API_KEY
-  local:
-    baseUrl: http://127.0.0.1:11434/v1
-    apiKeyEnv: LOCAL_API_KEY
-```
-
-- O mapa usa o nome **recebido** do cliente como chave.
-- Aliases (`default`, `opus`) são resolvidos antes do mapa.
-- `fallback` só é acionado em erros elegíveis (timeout, 5xx, rate limit), nunca em 400 do cliente.
-- Hot reload: mudanças de config são aplicadas na próxima requisição, sem reiniciar o app.
-
-### 2.5 Adapters
-
-Contrato comum (pseudo-TypeScript):
-
-```ts
-interface ProviderAdapter {
-  readonly name: string;
-
-  complete(req: CanonicalRequest, ctx: RequestContext): Promise<CanonicalResponse>;
-
-  stream(req: CanonicalRequest, ctx: RequestContext): AsyncIterable<CanonicalEvent>;
-
-  countTokens(req: CanonicalRequest, ctx: RequestContext): Promise<number>;
-}
-```
-
-| Adapter | Tradução | Observações |
-|---|---|---|
-| Anthropic | IR → Messages API | Passthrough de provedor; preserva cache/thinking |
-| OpenAI | IR → Chat Completions | Tools, `tool_calls`, streaming por deltas |
-| Gemini | IR → generateContent | Tool calling e system instruction |
-| OpenAI-compatible | IR → Chat Completions | Ollama, vLLM, LM Studio, Azure-compatible |
-
-Pontos de tradução críticos:
-
-| Anthropic | OpenAI |
-|---|---|
-| `system` (blocos) | mensagem `system` concatenada |
-| `tool_use` / `tool_result` | `tool_calls` / mensagem `tool` |
-| `stop_reason: tool_use` | `finish_reason: tool_calls` |
-| `max_tokens` | `max_completion_tokens` (quando aplicável) |
-| `content_block_delta` | `choices[0].delta.content` |
-| `input_json_delta` | fragmentos de `function.arguments` |
-| erro `{type,error}` | erro do provedor → normalizado |
-
-### 2.6 Encoder SSE
-
-O encoder recebe eventos canônicos e emite a sequência Anthropic:
-
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> MessageStart: primeiro evento
-    MessageStart --> BlockStart: novo bloco
-    BlockStart --> Delta: token
-    Delta --> Delta: token
-    Delta --> BlockStop: fim do bloco
-    BlockStop --> BlockStart: próximo bloco
-    BlockStop --> MessageDelta: fim da mensagem
-    MessageDelta --> MessageStop
-    MessageStop --> [*]
-```
-
-Regras:
-
-- `Content-Type: text/event-stream`, `Cache-Control: no-cache`.
-- Cada evento com `event:` e `data:` no formato esperado.
-- `message_start` inclui `id`, `model` (o nome lógico, não o real) e uso inicial quando disponível.
-- Em erro no meio do stream, emite evento de erro e encerra sem deixar o cliente pendurado.
-- Cliente desconectou → aborta a chamada ao provedor (cancellation propagada).
-
-### 2.7 Contador de tokens
-
-- Preferência: endpoint nativo do provedor quando existir.
-- Fallback: tokenizer local por família de modelo + margem conservadora.
-- Contrato de retorno: `{ "input_tokens": N }` no formato Anthropic.
-- Se a contagem não for confiável, o agente ainda deve operar; o erro é logado, não fatal.
-
-## 3. Fluxo de uma requisição
+## 5. Fluxo de uma requisição
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant C as claude
     participant P as Proxy
-    participant I as Ingresso
-    participant N as Normalizador
-    participant MR as Roteador
-    participant A as Adapter
-    participant S as Encoder SSE
+    participant L as LiteLLM
+    participant X as Provider
 
     C->>P: CONNECT api.figma.com:443
     P->>C: TLS (CA local)
-    C->>I: POST /v1/messages {stream:true}
-    I->>N: parse Anthropic
-    N-->>I: CanonicalRequest
-    I->>MR: resolve(model)
-    MR-->>I: provider + model real
-    I->>A: stream(req)
-    loop tokens
-        A-->>I: CanonicalEvent
-        I->>S: encode
-        S-->>C: SSE event
-    end
-    A-->>I: fim + usage
-    I->>S: message_delta/message_stop
-    S-->>C: SSE final
+    C->>P: POST /ai-gateway/llm/provider/universal/v1/messages
+    P->>L: POST /v1/messages (Authorization = master key)
+    L->>X: requisição no formato do provider
+    X-->>L: stream
+    L-->>P: SSE Anthropic
+    P-->>C: SSE Anthropic
 ```
 
-## 4. Segurança
+Regras do proxy:
+
+| Host/path | Ação |
+|---|---|
+| `api.figma.com/ai-gateway/llm/provider/universal/*` | MITM + rewrite + auth |
+| `api.figma.com/*` | MITM + forward intacto |
+| `www.figma.com`, `mcp.figma.com`, `desktop.figma.com` | túnel CONNECT |
+| `localhost`, `127.0.0.1` | túnel direto |
+
+## 6. Roteamento de modelos
+
+O figcode envia nomes nativos (`claude-opus-4-8`, `claude-haiku-4-5`). No LiteLLM eles são aliases:
+
+```yaml
+model_list:
+  - model_name: claude-opus-4-8
+    litellm_params:
+      model: github_copilot/claude-sonnet-5.5
+      litellm_credential_name: github-copilot
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: openrouter/anthropic/claude-haiku-4.5
+      api_key: os.environ/OPENROUTER_API_KEY
+
+router_settings:
+  fallbacks:
+    - claude-opus-4-8: ["claude-haiku-4-5"]
+  num_retries: 2
+```
+
+- Nomes públicos precisam começar com `claude-`/`anth-` para o Claude Code aceitar.
+- O picker do figcode continua mostrando os nomes do catálogo do Claude Code; o mapeamento é invisível.
+- Descoberta de modelos (`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`) é opcional e depende do host
+  gerenciar o env; validar antes de prometer.
+
+## 7. Autenticação
+
+- O figcode envia `Authorization: Bearer <token efêmero da Figma>`.
+- O proxy **descarta** esse token e usa `LITELLM_MASTER_KEY` (ou uma virtual key) com o LiteLLM.
+- O LiteLLM usa as credenciais do provider (env/keychain) ou o OAuth do Copilot.
+- A renovação do token da Figma continua funcionando: acontece entre web app e Figma, não no gateway.
+
+## 8. SQLite: decisão
+
+**Não** usamos SQLite como banco do LiteLLM Proxy:
+
+- o schema é PostgreSQL-only (`provider = "postgresql"` no Prisma);
+- a feature request de SQLite foi fechada como **not planned** ([#4583](https://github.com/BerriAI/litellm/issues/4583));
+- o Copilot exige que o token fique no banco.
+
+SQLite pode ser usado **pelo nosso app** para estado local (config, logs, histórico), nunca como banco
+do LiteLLM. A alternativa sem Postgres seria trocar o Proxy pelo SDK sidecar, assumindo o shim
+`/v1/messages` — decisão descartada para manter o Copilot no caminho suportado.
+
+## 9. Segurança
 
 | Item | Decisão |
 |---|---|
-| Escuta | Somente `127.0.0.1`; sem `0.0.0.0` |
-| Token da Figma | Recebido, **não validado** e **não repassado** ao provedor |
-| Chaves de provedor | Somente via env/keychain; nunca em log |
-| CA local | Chave privada protegida; validade curta; comando de remoção |
-| Logs | Prompt/resposta desligados por padrão; metadados e latência por request |
-| Redaction | `Authorization`, `x-api-key`, cookies e headers sensíveis |
-| Superfície | Sem admin remoto; controle só local (CLI/tray) |
+| Bind | `127.0.0.1` apenas |
+| Master key | Aleatória por instalação, no Credential Manager/DPAPI |
+| Salt key | Estável; sem ela os tokens do Copilot ficam ilegíveis |
+| CA | Privada protegida, validade curta, remoção no uninstall |
+| Logs | Prompt/resposta desligados por padrão; headers redigidos |
+| Supply chain | Manifesto assinado + SHA-256 dos artefatos |
+| Versão | `v1.108.1`; **não usar `v1.107.0`** (comprometida) |
 
-## 5. Desempenho e resiliência
+## 10. Resiliência e desempenho
 
-- Streaming com backpressure: não acumular no gateway.
-- Pool de conexões HTTP/2 para o provedor.
-- Timeout de first byte, idle e total por requisição.
-- Retry apenas em erros idempotentes; `POST /v1/messages` não é repetido após envio de tokens.
-- Circuit breaker por provedor; fallback quando configurado.
-- Se o gateway cair, o proxy pode:
-  - **fail-closed** (erro claro), ou
-  - **fail-open** (túnel direto para `api.figma.com`, usando o modelo da Figma).
+- Health check do LiteLLM antes de liberar o proxy.
+- Restart com backoff; Job Object garante limpeza dos filhos.
+- Timeout de first byte, idle e total.
+- Fallback por modelo no LiteLLM.
+- Se o LiteLLM cair, o proxy retorna erro claro; opção fail-open (túnel direto para a Figma) é
+  configurável, mas desligada por padrão.
 
-## 6. Stack e organização sugeridas
+## 11. Stack e organização
 
-- **Linguagem**: TypeScript sobre Node.js 22 (ou Bun) — streaming, TLS e ecossistema de SDKs.
-- **HTTP/TLS**: `undici`/`http2` + `node:tls`; proxy com `http-proxy` ou implementação própria de
-  `CONNECT`.
-- **Config**: YAML + validação com Zod; overrides por env.
-- **Testes**: Vitest; fixtures de request/SSE reais; e2e com um servidor fake Anthropic.
+- **App**: Tauri v2 (Rust + React/Vite).
+- **Proxy**: Rust (`hudsucker` ou hyper + rustls).
+- **Engine**: LiteLLM Proxy `v1.108.1` (Python, sidecar).
+- **Banco**: Postgres embutido (`postgresql_embedded` ou binários gerenciados).
+- **Estado do app**: SQLite/JSON.
 
 ```text
-src/
-├── core/
-│   ├── ir.ts              # CanonicalRequest / Response / Event
-│   ├── normalize.ts       # Anthropic -> IR
-│   ├── sse.ts             # encoder IR -> SSE
-│   └── errors.ts          # erros canônicos
-├── ingress/
-│   ├── server.ts          # /v1/messages, count_tokens, health
-│   └── validate.ts
-├── proxy/
-│   ├── tunnel.ts          # CONNECT, passthrough
-│   ├── mitm.ts            # TLS seletivo
-│   └── ca.ts              # geração/instalação da CA
-├── routing/
-│   ├── models.ts
-│   └── fallback.ts
-├── providers/
-│   ├── anthropic/
-│   ├── openai/
-│   ├── gemini/
-│   └── openai-compatible/
-├── config/
-│   ├── schema.ts
-│   └── load.ts
-└── observability/
-    ├── log.ts
-    └── metrics.ts
+app/
+├── src-tauri/        # supervisor, proxy, CA, tray, onboarding
+├── ui/               # dashboard, wizard, providers, logs
+└── runtime/          # LiteLLM/Postgres baixados
 ```
 
-## 7. Estratégia de testes
+## 12. Estratégia de testes
 
 | Nível | O que cobre |
 |---|---|
-| Unitário | Normalização, mapa de modelos, encoder SSE, redaction |
-| Contrato | Fixtures reais de `/v1/messages` e `count_tokens` por adapter |
-| Integração | Servidor fake do provedor; ordem e conteúdo dos eventos SSE |
-| E2E | Figma + gateway + provedor real (sandbox) |
+| Unitário | Rewrite de path/auth, parsing do manifesto, redaction |
+| Integração | Proxy + LiteLLM fake; SSE, tools, erros |
+| Contrato | Fixtures reais de `/v1/messages` e `count_tokens` |
+| E2E | Figma + app + provider real (sandbox) |
 | Caos | Provedor lento/erro, queda no meio do stream, token expirado |
-| Regressão | Tráfego não-IA continua intacto pelo proxy |
+| Regressão | Tráfego não-IA intacto; rollback de CA/env |
 
-## 8. Decisões pendentes
+## 13. Decisões pendentes
 
-1. Node vs. Go/Rust para o proxy (impacto em throughput e distribuição).
-2. Fail-open vs. fail-closed por padrão.
-3. Expor ou não um seletor de modelo próprio (exige patch de UI).
-4. Persistir histórico local para auditoria (privacidade vs. diagnóstico).
-5. Suportar múltiplos perfis de configuração (por projeto/time).
+1. Fail-open vs. fail-closed por padrão.
+2. Expor seletor de modelo próprio (exige patch de UI) ou só config.
+3. Persistir histórico no SQLite do app (privacidade vs. diagnóstico).
+4. Múltiplos perfis de configuração por projeto/time.
