@@ -1,13 +1,12 @@
 use serde::Serialize;
 
+/// States emitted by the scaffold. The real supervisor will add `Running`,
+/// `Degraded` and `Failed` when it wires health checks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceState {
     Stopped,
     Starting,
-    Running,
-    Degraded,
-    Failed,
 }
 
 #[derive(Debug, Clone, Serialize)]

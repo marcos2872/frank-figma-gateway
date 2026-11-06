@@ -196,12 +196,13 @@ Implementada em [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Roda em 
 | `ci-rust` | `cargo fmt --check`, `cargo clippy -p ffg-core -D warnings`, `cargo test -p ffg-core` |
 | `ci-coverage` | `cargo llvm-cov -p ffg-core --fail-under-lines 80` + artefato `lcov.info` |
 | `ci-web` | `pnpm install --frozen-lockfile`, `pnpm build` |
-| `ci-tauri` | `pnpm tauri build --no-bundle` (Windows) |
+| `ci-tauri` | `cargo clippy -p frank-figma-gateway -D warnings`, `pnpm tauri build --no-bundle` (Windows) |
 | `ci-docs` | `python3 scripts/check_docs.py` (links, fences e JSON) |
 
 Regras:
 
 - **Gate de cobertura**: falha se as linhas do núcleo (`ffg-core`) ficarem abaixo de **80%**.
+- **Warnings são erros** no crate do app (`cargo clippy -D warnings`), inclusive `dead_code`.
 - Todos os jobs são **required checks** na `main`.
 - Cache de Cargo e pnpm; concorrência cancela runs antigos do mesmo ref.
 - Windows é o alvo primário para o app Tauri.
