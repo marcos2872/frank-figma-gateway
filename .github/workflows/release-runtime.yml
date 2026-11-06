@@ -166,25 +166,71 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
+      - name: Release notes
+        env:
+          MANIFEST_KEY_ID: ${{ vars.MANIFEST_KEY_ID }}
+        run: |
+          cat > /tmp/release-notes.md <<EOF
+          Runtime do frank-figma-gateway — LiteLLM ${LITELLM_VERSION} + Postgres ${PGSQL_VERSION}
+
+          ## Conteúdo
+
+          | Arquivo | Descrição |
+          |---|---|
+          | \`litellm-runtime-${LITELLM_VERSION}-win-x64.zip\` | LiteLLM Proxy empacotado com PyInstaller (Windows x64) |
+          | \`pgsql-${PGSQL_VERSION}-win-x64.zip\` | Postgres ${PGSQL_VERSION} com os binários oficiais do EDB, layout normalizado |
+          | \`manifest.json\` | Versões, URLs, tamanhos e SHA-256 dos artefatos |
+          | \`manifest.json.sig\` | Assinatura Ed25519 do manifesto (chave \`${MANIFEST_KEY_ID}\`) |
+          | \`SHA256SUMS\` | Checksums de todos os arquivos acima |
+
+          ## Verificação
+
+          O app confere a assinatura Ed25519 do manifesto com a chave pública embutida e o SHA-256
+          de cada ZIP antes de extrair. Nenhum artefato é executado sem as duas checagens.
+
+          Para conferir manualmente no Windows:
+
+          \`\`\`powershell
+          Get-FileHash .\litellm-runtime-${LITELLM_VERSION}-win-x64.zip -Algorithm SHA256
+          \`\`\`
+
+          Compare com a linha correspondente em \`SHA256SUMS\`.
+
+          ## Requisitos
+
+          - Windows x64
+          - App a partir de 0.1.0
+          - Versões fixadas pela política do app: LiteLLM \`${LITELLM_VERSION}\`, Postgres major 16
+
+          ## Instalação
+
+          Não instale manualmente: o app baixa e instala este runtime pelo onboarding
+          (passo "Baixar LiteLLM"). O canal estável \`runtime-latest\` aponta para este release.
+
+          Versão anterior continua disponível nos releases versionados para rollback.
+          EOF
+          cat /tmp/release-notes.md
+
       - name: Publish versioned release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if gh release view "${RUNTIME_TAG}" >/dev/null 2>&1; then
-            echo "release ${RUNTIME_TAG} já existe; atualizando assets" >&2
+            echo "release ${RUNTIME_TAG} já existe; atualizando assets e descrição" >&2
             gh release upload "${RUNTIME_TAG}" dist/* --clobber
+            gh release edit "${RUNTIME_TAG}" --notes-file /tmp/release-notes.md
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             gh release create "${RUNTIME_TAG}" dist/* \
               --target "${GITHUB_SHA}" \
-              --title "Runtime ${RUNTIME_TAG}" \
-              --notes "LiteLLM ${LITELLM_VERSION}, Postgres ${PGSQL_VERSION} e manifesto assinado." \
+              --title "Runtime LiteLLM ${LITELLM_VERSION} + Postgres ${PGSQL_VERSION}" \
+              --notes-file /tmp/release-notes.md \
               --latest=false
           else
             gh release create "${RUNTIME_TAG}" dist/* \
               --verify-tag \
-              --title "Runtime ${RUNTIME_TAG}" \
-              --notes "LiteLLM ${LITELLM_VERSION}, Postgres ${PGSQL_VERSION} e manifesto assinado." \
+              --title "Runtime LiteLLM ${LITELLM_VERSION} + Postgres ${PGSQL_VERSION}" \
+              --notes-file /tmp/release-notes.md \
               --latest=false
           fi
 
@@ -202,3 +248,5 @@ jobs:
           # manifesto por último: o app nunca vê um manifesto apontando para ZIP ausente
           gh release upload "${CHANNEL_TAG}" dist/manifest.json.sig --clobber
           gh release upload "${CHANNEL_TAG}" dist/manifest.json --clobber
+          gh release edit "${CHANNEL_TAG}" \
+            --notes "Canal estável do runtime: aponta para ${RUNTIME_TAG}. O app lê releases/download/runtime-latest/manifest.json — não instale manualmente."
