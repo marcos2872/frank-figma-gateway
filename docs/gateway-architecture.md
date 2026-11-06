@@ -86,14 +86,27 @@ Regras do proxy:
 
 ## 6. Roteamento de modelos
 
-O figcode envia nomes nativos (`claude-opus-4-8`, `claude-haiku-4-5`). No LiteLLM eles são aliases:
+Validado no Figma desktop **126.11.7**: o seletor do Make usa **codenames da Figma**, e o agente
+também configura o filho `claude` com ids nativos do Claude Code. O mapeamento precisa aceitar as
+duas famílias:
+
+| Origem | Exemplos |
+|---|---|
+| Seletor do Make (`figmake`) | `figaro-gpt-6-sol`, `anthropic-claude-5.5-opus`, `aqua`, `google-gemini-3.8-flash`, `default` |
+| Claude Code (filho do agente) | `claude-opus-4-8`, `claude-haiku-4-5` |
+
+Cada id recebido vira um alias no LiteLLM:
 
 ```yaml
 model_list:
-  - model_name: claude-opus-4-8
+  - model_name: anthropic-claude-5.5-opus
     litellm_params:
       model: github_copilot/claude-sonnet-5.5
       litellm_credential_name: github-copilot
+  - model_name: figaro-gpt-6-sol
+    litellm_params:
+      model: openrouter/openai/gpt-6-sol
+      api_key: os.environ/OPENROUTER_API_KEY
   - model_name: claude-haiku-4-5
     litellm_params:
       model: openrouter/anthropic/claude-haiku-4.5
@@ -101,12 +114,17 @@ model_list:
 
 router_settings:
   fallbacks:
-    - claude-opus-4-8: ["claude-haiku-4-5"]
+    - anthropic-claude-5.5-opus: ["claude-haiku-4-5"]
   num_retries: 2
 ```
 
-- Nomes públicos precisam começar com `claude-`/`anth-` para o Claude Code aceitar.
-- O picker do figcode continua mostrando os nomes do catálogo do Claude Code; o mapeamento é invisível.
+- **Não dá para injetar modelos no seletor:** a lista vem de `get_supported_models`, um canal IPC
+  com o agente local, e não passa pela rede. O nome exibido é um `switch` fixo no bundle do web
+  app, então um id desconhecido nem aparece.
+- **Dá para trocar o modelo real:** o id viaja no corpo de `/v1/messages`; o proxy pode reescrevê-lo
+  ou mapear para outra rota. Um alias `default` configurável cobre ids novos.
+- A validação de nome público **não** pode exigir prefixo `claude-`/`anth-`: os codenames da Figma
+  não seguem esse padrão.
 - Descoberta de modelos (`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`) é opcional e depende do host
   gerenciar o env; validar antes de prometer.
 

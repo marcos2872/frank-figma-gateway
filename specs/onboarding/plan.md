@@ -1,6 +1,13 @@
 # Plano de implementação — onboarding completo (Windows x64)
 
 > Status: plano de implementação — o código ainda não foi alterado. Base: `docs/onboarding.md`, `docs/desktop-app.md`, `docs/gateway-architecture.md`, `docs/figma-gateway-integration.md`, `docs/figma-llm-architecture.md`, `docs/gateway-prd.md`, `docs/dev-guide.md`, `AGENTS.md` e o scaffold em `src/`.
+>
+> **Revisão de 2026-11-06 — catálogo de modelos:** os ids usados nos exemplos abaixo
+> (`claude-opus-4-8`, `claude-haiku-4-5`) estão desatualizados para o Figma 126.11.7. O seletor do
+> Make envia codenames da Figma (`figaro-gpt-6-sol`, `anthropic-claude-5.5-opus`, `aqua`,
+> `default`) e o agente também usa ids `claude-*`. A lista vem de `get_supported_models` (IPC, não
+> HTTP), então o proxy não injeta modelos no seletor — só substitui o modelo real. Ver
+> `docs/figma-llm-architecture.md §6` e `docs/gateway-architecture.md §6`.
 
 ## 1. Resumo executivo
 

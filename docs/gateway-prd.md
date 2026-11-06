@@ -56,7 +56,7 @@ para o provider escolhido. O app Tauri instala, configura e mantém tudo rodando
 | FR-05 | Rodar LiteLLM como sidecar com versão fixada | M | `v1.108.1` verificada por hash |
 | FR-06 | Configurar OpenRouter/Azure/Anthropic/OpenAI via API key | M | Teste de conexão OK |
 | FR-07 | Suportar GitHub Copilot via OAuth + Postgres | M | “Connected” e chamada OK |
-| FR-08 | Mapear `claude-opus-4-8`/`claude-haiku-4-5` para provider/modelo | M | Alias aplicado sem mudar a UI |
+| FR-08 | Mapear os ids do seletor (`figaro-*`, `anthropic-claude-*`, `aqua`, `default`) e os `claude-*` do agente para provider/modelo | M | Alias aplicado sem mudar a UI |
 | FR-09 | Fallback entre modelos/providers | S | Turno continua no secundário |
 | FR-10 | Instalador mínimo + download sob demanda | M | Instalador < 30 MB; runtime baixado no onboarding |
 | FR-11 | Onboarding em passos com retomada | M | Fechar/reabrir retoma no passo pendente |

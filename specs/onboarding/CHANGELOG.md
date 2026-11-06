@@ -186,7 +186,7 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] Passo 0 com `environment_report` (plataforma, data dir, disco, internet, Figma e proxy preexistente).
 - [x] Passo 1 com download/instalação do LiteLLM, progresso via `download://progress` e cancelamento.
 - [x] Passo 2 com catálogo de provedores, formulário dinâmico, salvar credencial e preparar Postgres do Copilot.
-- [x] Passo 3 com aliases `claude-opus-4-8`/`claude-haiku-4-5`, fallback, aplicação do config, start dos serviços e teste real no LiteLLM.
+- [x] Passo 3 com aliases dos ids que o cliente envia (codenames da Figma + `claude-*`), fallback, aplicação do config, start dos serviços e teste real no LiteLLM.
 - [x] Passo 4 com instalar/validar/remover/reiniciar Figma e checks da integração.
 - [x] Passo 5 com status dos serviços, saúde do LiteLLM, integração Figma, autostart e conclusão.
 - [x] First-run abre o wizard automaticamente; tray “Reconfigurar”/“Configurar Figma” abre o modal.
@@ -203,6 +203,18 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
   antes a UI exibia `[object Object]`.
 - [ ] Download real do LiteLLM continua bloqueado: não há release publicado (manifesto responde 404)
   e a chave embutida é o placeholder `retired`.
+
+### Modelos — validação na 126.11.7
+
+- [x] Ids reais mapeados no bundle do web app: `default` (Auto), `anthropic-claude-*`,
+  `figaro-gpt-*`, `aqua` (Gemini 4 Argon), `google-gemini-*`, `velvet`/`goldenrod`/`emerald`/`tangelo`.
+- [x] A lista do seletor vem de `get_supported_models` (**IPC** com o agente local), não de HTTP;
+  o nome exibido é um `switch` fixo no bundle.
+- [x] Consequência: o proxy substitui o modelo no corpo de `/v1/messages`, mas **não** injeta nomes
+  na lista do seletor.
+- [ ] Mapa configurável id → rota no proxy e validação de nome público sem exigir prefixo
+  `claude-`/`anth-`.
+- [ ] Confirmar em execução qual id chega em cada fluxo (Make, agente, tarefas auxiliares).
 
 ### Validação no Windows — pendências
 

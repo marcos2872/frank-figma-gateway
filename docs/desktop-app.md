@@ -44,7 +44,7 @@ flowchart TB
 | Rust core | Subir/parar sidecars, job object, health checks, restart, portas, CA e proxy |
 | Dashboard | Estado de Postgres/LiteLLM/proxy/CA/Figma, iniciar/parar, abrir janelas |
 | Wizard Figma | Instalar CA, gravar env, subir proxy, reiniciar Figma, testar |
-| Providers/Modelos | Chaves, mapa `claude-*` → provider/modelo, fallback |
+| Providers/Modelos | Chaves, mapa dos ids da Figma (Make + agente) → provider/modelo, fallback |
 | LiteLLM UI | Configuração avançada e OAuth do Copilot |
 | Logs | Tail dos processos com redaction |
 | Tray | Status, menu, close-to-tray, autostart |
