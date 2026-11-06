@@ -113,10 +113,16 @@ pub struct RuntimeState {
     pub litellm_version: Option<String>,
     #[serde(default)]
     pub active_litellm: Option<String>,
+    /// SHA-256 do ZIP instalado; muda a cada build do runtime, mesmo com a
+    /// mesma versão, e é o que habilita o botão de atualização.
+    #[serde(default)]
+    pub litellm_sha256: Option<String>,
     #[serde(default)]
     pub pgsql_version: Option<String>,
     #[serde(default)]
     pub active_pgsql: Option<String>,
+    #[serde(default)]
+    pub pgsql_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

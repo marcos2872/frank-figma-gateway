@@ -94,8 +94,10 @@ export interface StepState {
 export interface RuntimeState {
   litellmVersion?: string | null;
   activeLitellm?: string | null;
+  litellmSha256?: string | null;
   pgsqlVersion?: string | null;
   activePgsql?: string | null;
+  pgsqlSha256?: string | null;
 }
 
 export type ProviderKind =

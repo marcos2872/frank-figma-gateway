@@ -24,12 +24,15 @@ export function StepRuntime({ onNext }: WizardStepProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [latest, setLatest] = useState<string | null>(null);
+  const [latestSha, setLatestSha] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetchRuntimeManifest(DEFAULT_MANIFEST_URL, DEFAULT_SIGNATURE_URL)
       .then((manifest) => {
-        if (!cancelled) setLatest(manifest.litellm.version);
+        if (cancelled) return;
+        setLatest(manifest.litellm.version);
+        setLatestSha(manifest.litellm.sha256);
       })
       .catch(() => undefined);
     return () => {
@@ -90,7 +93,11 @@ export function StepRuntime({ onNext }: WizardStepProps) {
   }
 
   const installed = setup?.runtime.activeLitellm;
-  const outdated = Boolean(installed && latest && installed !== latest);
+  // O hash muda a cada build do runtime (r4 → r5), mesmo com a mesma versão.
+  const installedSha = setup?.runtime.litellmSha256;
+  const updateAvailable = Boolean(
+    installed && latestSha && installedSha !== latestSha,
+  );
   const percent =
     progress && progress.total > 0
       ? Math.round((progress.downloaded / progress.total) * 100)
@@ -105,7 +112,11 @@ export function StepRuntime({ onNext }: WizardStepProps) {
       {installed ? (
         <p className="wizard-success">
           LiteLLM {installed} já está instalado.
-          {latest && latest !== installed ? ` Disponível: ${latest}.` : ""}
+          {updateAvailable
+            ? latest && latest !== installed
+              ? ` Atualização disponível: ${latest}.`
+              : " Há um build novo do runtime disponível."
+            : ""}
         </p>
       ) : null}
       {progress ? (
@@ -130,28 +141,23 @@ export function StepRuntime({ onNext }: WizardStepProps) {
             Cancelar
           </button>
         ) : null}
-        <button
-          type="button"
-          disabled={Boolean(operationId) || (Boolean(installed) && !outdated)}
-          onClick={() => void install()}
-        >
-          {outdated
-            ? `Atualizar para ${latest}`
-            : installed
-              ? "Instalado"
-              : "Baixar e instalar LiteLLM"}
-        </button>
-        {installed && !outdated ? (
+        {installed ? (
           <button
             type="button"
-            className="secondary"
+            disabled={!updateAvailable || Boolean(operationId)}
+            onClick={() => void install()}
+          >
+            {updateAvailable ? "Atualizar runtime" : "Runtime atualizado"}
+          </button>
+        ) : (
+          <button
+            type="button"
             disabled={Boolean(operationId)}
             onClick={() => void install()}
-            title="Baixa de novo quando o release do runtime muda (mesma versão, build novo)"
           >
-            Reinstalar runtime
+            Baixar e instalar LiteLLM
           </button>
-        ) : null}
+        )}
         {installed ? (
           <button type="button" disabled={busy} onClick={() => void continueInstalled()}>
             Continuar

@@ -89,13 +89,26 @@ pub async fn runtime_install(
     }
 
     let installation = result.map_err(|error| error.to_ui_error())?;
-    sync_runtime_state(&state, &app, component, &installation.version);
+    sync_runtime_state(
+        &state,
+        &app,
+        component,
+        &installation.version,
+        &component_manifest.sha256,
+    );
     Ok(installation)
 }
 
 /// Mantém `setup.json` alinhado com o `active.json` do runtime, para a UI saber
-/// o que já está instalado (inclusive o Postgres usado pelo Copilot).
-fn sync_runtime_state(state: &AppState, app: &AppHandle, component: ComponentId, version: &str) {
+/// o que já está instalado (inclusive o Postgres usado pelo Copilot) e se há
+/// build novo disponível.
+fn sync_runtime_state(
+    state: &AppState,
+    app: &AppHandle,
+    component: ComponentId,
+    version: &str,
+    sha256: &str,
+) {
     let Ok(store) = state.setup.lock() else {
         return;
     };
@@ -103,8 +116,14 @@ fn sync_runtime_state(state: &AppState, app: &AppHandle, component: ComponentId,
         return;
     };
     match component {
-        ComponentId::Litellm => setup.runtime.active_litellm = Some(version.to_owned()),
-        ComponentId::Pgsql => setup.runtime.active_pgsql = Some(version.to_owned()),
+        ComponentId::Litellm => {
+            setup.runtime.active_litellm = Some(version.to_owned());
+            setup.runtime.litellm_sha256 = Some(sha256.to_owned());
+        }
+        ComponentId::Pgsql => {
+            setup.runtime.active_pgsql = Some(version.to_owned());
+            setup.runtime.pgsql_sha256 = Some(sha256.to_owned());
+        }
     }
     if store.save(&mut setup).is_ok() {
         if let Err(error) = app.emit(crate::events::SETUP_STATE, setup) {
