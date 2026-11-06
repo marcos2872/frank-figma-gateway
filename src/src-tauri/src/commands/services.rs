@@ -43,7 +43,7 @@ pub async fn service_status(state: State<'_, AppState>) -> Result<Vec<ServiceSta
 #[tauri::command]
 pub async fn start_services(state: State<'_, AppState>) -> Result<Vec<ServiceStatus>, UiError> {
     register_services(&state).await?;
-    let statuses = state
+    state
         .supervisor
         .start_all()
         .await
@@ -54,7 +54,7 @@ pub async fn start_services(state: State<'_, AppState>) -> Result<Vec<ServiceSta
             log::warn!("proxy não subiu ao iniciar serviços: {}", error.message);
         }
     }
-    Ok(statuses)
+    service_status(state).await
 }
 
 fn integration_is_active(state: &AppState) -> bool {
@@ -73,7 +73,8 @@ pub async fn stop_services(state: State<'_, AppState>) -> Result<Vec<ServiceStat
         .supervisor
         .stop_all()
         .await
-        .map_err(|error| error.to_ui_error())
+        .map_err(|error| error.to_ui_error())?;
+    service_status(state).await
 }
 
 #[tauri::command]
@@ -84,7 +85,8 @@ pub async fn restart_services(state: State<'_, AppState>) -> Result<Vec<ServiceS
         .supervisor
         .start_all()
         .await
-        .map_err(|error| error.to_ui_error())
+        .map_err(|error| error.to_ui_error())?;
+    service_status(state).await
 }
 
 #[tauri::command]
