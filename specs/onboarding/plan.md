@@ -1160,7 +1160,7 @@ validação no Windows.
 
 | Caminho | Ação | Responsabilidade |
 |---|---|---|
-| `.github/workflows/release.yml` | criar | Tag `v*`: build LiteLLM, Postgres, manifesto, assinatura, release, smoke Windows |
+| `.github/workflows/release-runtime.yml` | criar | Tags `runtime-v*`: build LiteLLM, Postgres, manifesto, assinatura, release versionado e canal `runtime-latest` |
 | `.github/workflows/ci.yml` | alterar | Jobs para novos crates; manter gate 80% do core |
 | `scripts/build-litellm-runtime.ps1` | criar | PyInstaller one-folder ou venv selado; Python fixado; `litellm --version`; smoke com Postgres; excluir `enterprise/` |
 | `scripts/build-pgsql-runtime.ps1` | criar | ZIP do Postgres 16.x oficial; `postgres --version`; licença |
@@ -1610,7 +1610,7 @@ carrossel, auto-abertura no first-run e tray; testes de UI/E2E Windows pendentes
 | `src/ui/e2e/` | criar | Specs WebdriverIO/tauri-driver |
 | `scripts/e2e/run.ps1` | criar | Build de teste, servidor de artefatos local, execução |
 | `.github/workflows/e2e-windows.yml` | criar | E2E noturno/manual com fake artifacts |
-| `.github/workflows/release.yml` | alterar | Assinatura do instalador, updater, SBOM, checksums |
+| `.github/workflows/release-app.yml` | alterar | Assinatura do instalador, updater, SBOM, checksums |
 | `src/src-tauri/src/diagnostics.rs` | criar | Relatório redigido, export |
 | `src/src-tauri/src/commands/diagnostics.rs` | criar | Comandos |
 | `src/src-tauri/tauri.conf.json` | alterar | Bundle NSIS, updater, assinatura |

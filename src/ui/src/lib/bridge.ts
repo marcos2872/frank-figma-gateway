@@ -128,7 +128,7 @@ import type {
 } from "./contracts";
 
 export const DEFAULT_MANIFEST_URL =
-  "https://github.com/marcos2872/frank-figma-gateway/releases/latest/download/manifest.json";
+  "https://github.com/marcos2872/frank-figma-gateway/releases/download/runtime-latest/manifest.json";
 export const DEFAULT_SIGNATURE_URL = `${DEFAULT_MANIFEST_URL}.sig`;
 
 export async function getEnvironmentReport(): Promise<EnvironmentReport> {

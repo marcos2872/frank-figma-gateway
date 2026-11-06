@@ -1,0 +1,204 @@
+name: Release — runtime
+
+# Publica os artefatos de runtime (LiteLLM/Postgres) e o manifesto assinado.
+# Separado do release do app: tags `runtime-v*` não disputam o canal `latest`.
+#
+# Canal estável: o release `runtime-latest` é atualizado no lugar e é a URL que o
+# app consome (`releases/download/runtime-latest/manifest.json`). Os releases
+# versionados ficam como histórico/rollback.
+
+on:
+  push:
+    tags: ["runtime-v*"]
+  workflow_dispatch:
+    inputs:
+      runtime_tag:
+        description: "Tag do release (ex.: runtime-v1.108.1-r1)"
+        required: true
+        default: "runtime-v1.108.1-r1"
+      litellm_version:
+        description: "Versão do LiteLLM"
+        required: true
+        default: "1.108.1"
+      pgsql_version:
+        description: "Versão do Postgres"
+        required: true
+        default: "16.9"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-runtime-${{ github.event.inputs.runtime_tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RUNTIME_TAG: ${{ github.event.inputs.runtime_tag || github.ref_name }}
+  CHANNEL_TAG: runtime-latest
+  LITELLM_VERSION: ${{ github.event.inputs.litellm_version || '1.108.1' }}
+  PGSQL_VERSION: ${{ github.event.inputs.pgsql_version || '16.9' }}
+
+jobs:
+  build-runtime:
+    name: build-runtime
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build LiteLLM runtime
+        shell: pwsh
+        run: ./scripts/build-litellm-runtime.ps1 -Version "$env:LITELLM_VERSION"
+
+      - name: Build Postgres runtime
+        shell: pwsh
+        run: ./scripts/build-pgsql-runtime.ps1 -Version "$env:PGSQL_VERSION" -Build "1"
+
+      - name: Generate manifest
+        shell: pwsh
+        run: |
+          node scripts/manifest.mjs `
+            --litellm "dist/litellm-runtime-$env:LITELLM_VERSION-win-x64.zip" `
+            --pgsql "dist/pgsql-$env:PGSQL_VERSION-win-x64.zip" `
+            --base-url "https://github.com/${{ github.repository }}/releases/download/$env:RUNTIME_TAG" `
+            --litellm-version "$env:LITELLM_VERSION" `
+            --pgsql-version "$env:PGSQL_VERSION" `
+            --out "dist/manifest.json" `
+            --min-app-version "0.1.0"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-artifacts
+          path: dist/
+          if-no-files-found: error
+
+  sign-manifest:
+    name: sign-manifest
+    needs: build-runtime
+    runs-on: ubuntu-latest
+    env:
+      MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
+      MANIFEST_KEY_ID: ${{ vars.MANIFEST_KEY_ID }}
+      MANIFEST_PUBLIC_KEY: ${{ vars.MANIFEST_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar chave embutida no app
+        run: node scripts/check-manifest-key.mjs
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src -> target
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: runtime-artifacts
+          path: dist
+
+      - name: Build manifest tools
+        run: cargo build --manifest-path src/Cargo.toml --release -p manifest-signer -p manifest-verify
+
+      - name: Sign manifest
+        run: |
+          set -euo pipefail
+          if [ -z "${MANIFEST_SIGNING_KEY}" ]; then
+            echo "MANIFEST_SIGNING_KEY não configurado" >&2
+            exit 1
+          fi
+          if [ -z "${MANIFEST_KEY_ID}" ]; then
+            echo "MANIFEST_KEY_ID não configurado" >&2
+            exit 1
+          fi
+          printf '%s' "${MANIFEST_SIGNING_KEY}" > /tmp/manifest.key
+          src/target/release/manifest-signer \
+            --key /tmp/manifest.key \
+            --key-id "${MANIFEST_KEY_ID}" \
+            --input dist/manifest.json \
+            --output dist/manifest.json.sig
+          rm -f /tmp/manifest.key
+
+      - name: Verify manifest
+        run: |
+          set -euo pipefail
+          if [ -z "${MANIFEST_PUBLIC_KEY}" ]; then
+            echo "MANIFEST_PUBLIC_KEY não configurado" >&2
+            exit 1
+          fi
+          cat > /tmp/keys.json <<EOF
+          [{
+            "keyId": "${MANIFEST_KEY_ID}",
+            "algorithm": "ed25519",
+            "publicKey": "${MANIFEST_PUBLIC_KEY}",
+            "status": "active"
+          }]
+          EOF
+          src/target/release/manifest-verify \
+            --manifest dist/manifest.json \
+            --signature dist/manifest.json.sig \
+            --keys /tmp/keys.json \
+            --app-version "0.1.0" \
+            --policy src/src-tauri/resources/runtime-policy.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-runtime-artifacts
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    needs: sign-manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed-runtime-artifacts
+          path: dist
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish versioned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RUNTIME_TAG}" >/dev/null 2>&1; then
+            echo "release ${RUNTIME_TAG} já existe; atualizando assets" >&2
+            gh release upload "${RUNTIME_TAG}" dist/* --clobber
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            gh release create "${RUNTIME_TAG}" dist/* \
+              --target "${GITHUB_SHA}" \
+              --title "Runtime ${RUNTIME_TAG}" \
+              --notes "LiteLLM ${LITELLM_VERSION}, Postgres ${PGSQL_VERSION} e manifesto assinado." \
+              --latest=false
+          else
+            gh release create "${RUNTIME_TAG}" dist/* \
+              --verify-tag \
+              --title "Runtime ${RUNTIME_TAG}" \
+              --notes "LiteLLM ${LITELLM_VERSION}, Postgres ${PGSQL_VERSION} e manifesto assinado." \
+              --latest=false
+          fi
+
+      - name: Publish stable channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "${CHANNEL_TAG}" >/dev/null 2>&1; then
+            gh release create "${CHANNEL_TAG}" \
+              --title "Runtime (canal estável)" \
+              --notes "Aponta para o runtime publicado mais recente. Atualizado automaticamente pelo workflow Release — runtime." \
+              --latest=false
+          fi
+          # manifesto por último: o app nunca vê um manifesto apontando para ZIP ausente
+          gh release upload "${CHANNEL_TAG}" dist/manifest.json.sig --clobber
+          gh release upload "${CHANNEL_TAG}" dist/manifest.json --clobber

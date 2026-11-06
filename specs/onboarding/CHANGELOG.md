@@ -66,8 +66,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 ### F2 — Artefatos de runtime e CD mínimo
 
-- [x] Workflow `.github/workflows/release.yml` para tag `v*`: build Windows, manifesto, assinatura,
-  verificação e publicação.
+- [x] Workflow `.github/workflows/release-runtime.yml` para tags `runtime-v*`: build Windows,
+  manifesto, assinatura, verificação, release versionado e canal `runtime-latest`.
 - [x] `scripts/build-litellm-runtime.ps1` (PyInstaller one-folder + validação `--version`).
 - [x] `scripts/build-pgsql-runtime.ps1` (binários oficiais do EDB + `postgres --version`).
 - [x] `scripts/manifest.mjs` (SHA-256, tamanho, URL, `installedSize`, entrypoint).
@@ -226,7 +226,7 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 **Artefatos e release**
 - [ ] Build real do LiteLLM com PyInstaller, hidden imports, `litellm --version` e start do proxy.
 - [ ] Build real do Postgres EDB, layout `bin/postgres.exe`, `postgres --version` e licença.
-- [ ] Workflow `release.yml` em runner Windows; publicação de ZIPs + `manifest.json` + `.sig`.
+- [ ] Workflow `release-runtime.yml` em runner Windows; publicação de ZIPs + `manifest.json` + `.sig`.
 - [ ] Substituir a chave pública placeholder `retired` pela chave real e garantir `MANIFEST_SIGNING_KEY` no secret.
 - [ ] Verificar SHA-256/assinatura do manifesto e dos ZIPs no app.
 - [ ] `installedSize` real dos artefatos (hoje pode cair no tamanho do ZIP).

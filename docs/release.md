@@ -72,12 +72,26 @@ A assinatura cobre os bytes exatos do `manifest.json`. A validação usa `keyId`
 
 ## 4. Publicar
 
-O workflow [`.github/workflows/release.yml`](../.github/workflows/release.yml) dispara em tags `v*`:
+O runtime tem workflow próprio: [`release-runtime.yml`](../.github/workflows/release-runtime.yml).
+Ele dispara em tags `runtime-v*` (ou manualmente por `workflow_dispatch`):
 
 1. build dos dois ZIPs no Windows;
 2. geração do `manifest.json`;
 3. assinatura e verificação em Ubuntu;
-4. publicação do release com ZIPs, manifesto, `.sig` e `SHA256SUMS`.
+4. publicação do release versionado com ZIPs, manifesto, `.sig` e `SHA256SUMS`;
+5. atualização do canal estável `runtime-latest`, que guarda só o manifesto e a assinatura.
+
+```powershell
+git tag runtime-v1.108.1-r1
+git push origin runtime-v1.108.1-r1
+```
+
+**Por que o canal existe:** o app lê
+`releases/download/runtime-latest/manifest.json`. Usar `releases/latest` faria o app pegar o
+release do app (que não tem manifesto) assim que o CD do app entrar. O manifesto do canal aponta
+para os ZIPs do release versionado, então cada versão continua reproduzível e reversível.
+
+O release do app é um workflow separado (tag `v*`), ainda pendente de implementação.
 
 O job de assinatura roda `scripts/check-manifest-key.mjs` antes de assinar e falha se a chave
 embutida no app não for a mesma de `MANIFEST_KEY_ID`/`MANIFEST_PUBLIC_KEY`.
