@@ -1,11 +1,9 @@
 import type { ProviderKind } from "../../lib/contracts";
 
+export { errorMessage } from "../../lib/errors";
+
 export interface WizardStepProps {
   onNext: () => void;
-}
-
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export function formatBytes(bytes: number): string {

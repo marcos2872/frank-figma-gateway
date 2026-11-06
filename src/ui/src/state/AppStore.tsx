@@ -31,6 +31,7 @@ import type {
   StepId,
   StepOutcome,
 } from "../lib/contracts";
+import { errorMessage } from "../lib/errors";
 
 export type Screen =
   | "dashboard"
@@ -62,10 +63,6 @@ interface AppStoreValue {
 }
 
 const AppStoreContext = createContext<AppStoreValue | null>(null);
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function mergeService(
   current: ServiceStatus[],
