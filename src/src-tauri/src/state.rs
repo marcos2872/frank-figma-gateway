@@ -22,6 +22,7 @@ pub struct AppState {
     pub supervisor: Arc<Supervisor>,
     pub secrets: Arc<dyn SecretStore>,
     pub litellm: ConfigStore,
+    pub copilot: ffg_litellm::CopilotAuth,
     pub ca: Arc<CaManager>,
     pub env: Arc<dyn EnvStore>,
     pub proxy: Mutex<Option<ProxyHandle>>,
@@ -49,6 +50,7 @@ impl AppState {
             supervisor: Arc::new(Supervisor::default()),
             secrets: Arc::new(PlatformSecretStore::default()),
             litellm: ConfigStore::new(paths.litellm_config_dir())?,
+            copilot: ffg_litellm::CopilotAuth::from_env(),
             ca: Arc::new(CaManager::new(
                 paths.clone(),
                 Arc::new(PlatformCertStore::default()),

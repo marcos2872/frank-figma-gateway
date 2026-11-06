@@ -88,7 +88,29 @@ pub async fn runtime_install(
         operations.remove(&operation_id);
     }
 
-    result.map_err(|error| error.to_ui_error())
+    let installation = result.map_err(|error| error.to_ui_error())?;
+    sync_runtime_state(&state, &app, component, &installation.version);
+    Ok(installation)
+}
+
+/// Mantém `setup.json` alinhado com o `active.json` do runtime, para a UI saber
+/// o que já está instalado (inclusive o Postgres usado pelo Copilot).
+fn sync_runtime_state(state: &AppState, app: &AppHandle, component: ComponentId, version: &str) {
+    let Ok(store) = state.setup.lock() else {
+        return;
+    };
+    let Ok(mut setup) = store.load().map(|result| result.state) else {
+        return;
+    };
+    match component {
+        ComponentId::Litellm => setup.runtime.active_litellm = Some(version.to_owned()),
+        ComponentId::Pgsql => setup.runtime.active_pgsql = Some(version.to_owned()),
+    }
+    if store.save(&mut setup).is_ok() {
+        if let Err(error) = app.emit(crate::events::SETUP_STATE, setup) {
+            log::warn!("falha ao emitir {}: {error}", crate::events::SETUP_STATE);
+        }
+    }
 }
 
 #[tauri::command]

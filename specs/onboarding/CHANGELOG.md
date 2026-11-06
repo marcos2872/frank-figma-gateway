@@ -185,8 +185,14 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
   senha no cofre e marca `postgresReady`.
 - [x] `DATABASE_URL` injetado no ambiente do LiteLLM quando o perfil Copilot está ativo.
 - [x] Senha do Postgres protegida pelo secret store; dados em `postgres/data`.
-- [ ] OAuth/device flow, criação de credential `github-copilot`, alias e teste dependem do spike
-  obrigatório da API do LiteLLM `v1.108.1`; os comandos retornam erro acionável por enquanto.
+- [x] Device flow do GitHub Copilot em `ffg-litellm::copilot`: `device/code`, polling
+  (`authorization_pending`/`slow_down`/`expired_token`/`access_denied`), login e gravação do
+  `access-token` em `copilot/github-copilot/`, injetado como `GITHUB_COPILOT_TOKEN_DIR` no LiteLLM.
+- [x] `copilot_prepare` baixa e instala o runtime do Postgres sob demanda (progresso no wizard) e
+  `runtime_install` sincroniza `setup.runtime`.
+- [x] Rota `github_copilot/` não exige mais `litellm_credential_name` (autentica pelo token).
+- [ ] Testar o fluxo completo com uma conta Copilot real e confirmar o modelo do plano.
+- [ ] Revisão de ToS do OAuth (reusa o client id público do LiteLLM) antes do release público.
 - [ ] Backup/restore, upgrade de major e validação do cluster no Windows.
 
 ### F10 — Wizard completo
@@ -322,7 +328,8 @@ Runs de validação — nenhum release publicado ainda:
 - [ ] `DATABASE_URL` com senha URL-encoded e migrações do LiteLLM.
 - [ ] Backup/restore e upgrade de major.
 - [ ] Spike obrigatório da API de credential/device flow do Copilot no LiteLLM `v1.108.1`.
-- [ ] OAuth/device flow real, credential `github-copilot`, aliases e teste; erros de plano/429.
+- [x] OAuth/device flow real implementado (token em `GITHUB_COPILOT_TOKEN_DIR`).
+- [ ] Teste com conta real, modelo do plano e erros 401/403/429.
 - [ ] Desconectar/desabilitar/apagar dados do Copilot.
 
 **Wizard/UI**
@@ -370,8 +377,8 @@ Runs de validação — nenhum release publicado ainda:
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets -- -D warnings` (app Tauri incluído).
-- `cargo test --workspace` — **188 testes, 0 falhas** (core 116, runtime 34, supervisor 10,
-  litellm 8, src-tauri 8, proxy 8, postgres 4).
+- `cargo test --workspace` — **192 testes, 0 falhas** (core 116, litellm 12, runtime 34,
+  supervisor 10, src-tauri 8, proxy 8, postgres 4).
 - `cargo test -p ffg-proxy` — inclui o MITM com `figaro-gpt-6-sol` chegando ao upstream como
   `claude-opus-4-8`.
 - `pnpm build`

@@ -5,6 +5,7 @@ use crate::state::AppState;
 use ffg_core::error::{ErrorCode, UiError};
 use ffg_core::secrets::SecretError;
 use ffg_core::setup::{AuthStatus, CopilotState, SetupState};
+use ffg_litellm::{DeviceFlow, PollOutcome};
 use ffg_postgres::{self as pg, CommandSpec, PostgresLayout};
 use ffg_supervisor::{HealthCheck, ServiceName, ServiceSpec, ServiceState};
 use serde::Serialize;
@@ -95,22 +96,59 @@ pub async fn copilot_disconnect(state: State<'_, AppState>) -> Result<CopilotSta
 }
 
 #[tauri::command]
-pub async fn copilot_begin_auth() -> Result<(), UiError> {
-    Err(copilot_api_pending())
+pub async fn copilot_begin_auth(state: State<'_, AppState>) -> Result<DeviceFlow, UiError> {
+    let flow = state
+        .copilot
+        .begin()
+        .await
+        .map_err(|error| error.to_ui_error())?;
+    let mut setup = load_setup(&state)?;
+    setup.copilot.enabled = true;
+    setup.copilot.auth_status = AuthStatus::WaitingForUser;
+    save_setup(&state, &mut setup)?;
+    Ok(flow)
 }
 
 #[tauri::command]
-pub async fn copilot_poll_auth() -> Result<(), UiError> {
-    Err(copilot_api_pending())
+pub async fn copilot_poll_auth(
+    device_code: String,
+    state: State<'_, AppState>,
+) -> Result<CopilotStatus, UiError> {
+    let outcome = state
+        .copilot
+        .poll(&device_code)
+        .await
+        .map_err(|error| error.to_ui_error())?;
+
+    let mut setup = load_setup(&state)?;
+    match outcome {
+        PollOutcome::Pending | PollOutcome::SlowDown => {
+            setup.copilot.auth_status = AuthStatus::WaitingForUser;
+        }
+        PollOutcome::Token(token) => {
+            store_access_token(&state, &token)?;
+            let login = state.copilot.login(&token).await.unwrap_or(None);
+            setup.copilot.connected = true;
+            setup.copilot.auth_status = AuthStatus::Connected;
+            setup.copilot.github_login = login;
+            setup.copilot.last_error = None;
+        }
+    }
+    save_setup(&state, &mut setup)?;
+
+    let postgres = postgres_status(&state, &setup).await?;
+    Ok(CopilotStatus {
+        copilot: setup.copilot,
+        postgres,
+    })
 }
 
-fn copilot_api_pending() -> UiError {
-    UiError::new(
-        ErrorCode::CopilotAuthPending,
-        "O OAuth do GitHub Copilot depende da API de credential do LiteLLM v1.108.1.",
-    )
-    .with_detail("spike pendente; use a UI do LiteLLM enquanto isso")
-    .with_action("open_litellm_ui")
+/// Grava o token no diretório que o LiteLLM lê (`GITHUB_COPILOT_TOKEN_DIR`).
+fn store_access_token(state: &AppState, token: &str) -> Result<(), UiError> {
+    let dir = state.paths.root().join("copilot").join("github-copilot");
+    std::fs::create_dir_all(&dir).map_err(io_error)?;
+    std::fs::write(dir.join("access-token"), token).map_err(io_error)?;
+    Ok(())
 }
 
 async fn prepare_postgres(state: &AppState) -> Result<(), UiError> {

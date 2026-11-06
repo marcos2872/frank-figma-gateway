@@ -137,9 +137,8 @@ fn validate_route(route: &ModelRoute) -> Result<(), ConfigError> {
             route.public_name.clone(),
         ));
     }
-    if route.provider_model.starts_with("github_copilot/") && route.credential_name.is_none() {
-        return Err(ConfigError::MissingCredential(route.public_name.clone()));
-    }
+    // `github_copilot/` autentica pelo token do device flow gravado em
+    // `GITHUB_COPILOT_TOKEN_DIR`; não exige `litellm_credential_name`.
     if let Some(env) = &route.api_key_env {
         if !is_env_name(env) {
             return Err(ConfigError::InvalidEnvName(env.clone()));
@@ -222,7 +221,6 @@ pub enum ConfigError {
     DuplicateRoute(String),
     MissingProviderModel(String),
     ConflictingCredentials(String),
-    MissingCredential(String),
     InvalidEnvName(String),
     ReservedExtra(String),
     InvalidFallback(String),
@@ -244,9 +242,6 @@ impl fmt::Display for ConfigError {
             }
             ConfigError::ConflictingCredentials(name) => {
                 write!(f, "rota {name} define credencial e API key ao mesmo tempo")
-            }
-            ConfigError::MissingCredential(name) => {
-                write!(f, "rota {name} do Copilot exige litellm_credential_name")
             }
             ConfigError::InvalidEnvName(name) => write!(f, "nome de variável inválido: {name}"),
             ConfigError::ReservedExtra(key) => {
@@ -352,10 +347,9 @@ mod tests {
 
         let mut settings = base_settings();
         settings.routes[0].credential_name = None;
-        assert_eq!(
-            generate_litellm_config(&settings).expect_err("must fail"),
-            ConfigError::MissingCredential("claude-opus-4-8".to_owned())
-        );
+        // Copilot sem credential usa o token do device flow
+        // (`GITHUB_COPILOT_TOKEN_DIR`), então a geração deve aceitar.
+        assert!(generate_litellm_config(&settings).is_ok());
 
         let mut settings = base_settings();
         settings.routes[0].credential_name = None;

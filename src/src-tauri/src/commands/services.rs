@@ -137,6 +137,13 @@ async fn register_services(state: &AppState) -> Result<(), UiError> {
             let mut env = BTreeMap::new();
             env.insert("LITELLM_MASTER_KEY".to_owned(), master.expose().to_owned());
             env.insert("LITELLM_SALT_KEY".to_owned(), salt.expose().to_owned());
+            let copilot_token_dir = state.paths.root().join("copilot").join("github-copilot");
+            if copilot_token_dir.join("access-token").is_file() {
+                env.insert(
+                    "GITHUB_COPILOT_TOKEN_DIR".to_owned(),
+                    copilot_token_dir.display().to_string(),
+                );
+            }
             if setup.copilot.enabled && setup.copilot.postgres_ready {
                 if let Some(postgres_port) = setup.services.postgres {
                     let password = ensure_secret(state.secrets.as_ref(), POSTGRES_PASSWORD)

@@ -29,6 +29,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app::app_info,
             commands::app::preview_rewrite,
+            commands::app::open_url,
             commands::services::service_status,
             commands::services::start_services,
             commands::services::stop_services,
