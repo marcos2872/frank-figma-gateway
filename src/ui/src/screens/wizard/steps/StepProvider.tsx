@@ -199,26 +199,43 @@ export function StepProvider({ onNext }: WizardStepProps) {
           {flow ? (
             <div className="wizard-meta">
               <p>
-                Abra <code>{flow.verificationUri}</code> e informe o código{" "}
-                <strong>{flow.userCode}</strong>. Aguardando autorização…
+                Abra <code>{flow.verificationUri}</code> e informe este código:
               </p>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => void openExternal(flow.verificationUri)}
-              >
-                Abrir GitHub
-              </button>
+              <p className="wizard-copilot-code">{flow.userCode}</p>
+              <div className="wizard-step-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => void openExternal(flow.verificationUri)}
+                >
+                  Abrir GitHub
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => void navigator.clipboard.writeText(flow.userCode)}
+                >
+                  Copiar código
+                </button>
+              </div>
+              <p>
+                O código vale só para esta tentativa: se você gerou outro antes,
+                ele não funciona mais.
+              </p>
             </div>
           ) : null}
           <div className="wizard-step-actions">
             <button
               type="button"
               className="secondary"
-              disabled={busy || Boolean(flow) || copilot?.copilot.connected}
+              disabled={busy || copilot?.copilot.connected}
               onClick={() => void connectGithub()}
             >
-              {copilot?.copilot.connected ? "Conectado" : "Conectar GitHub"}
+              {copilot?.copilot.connected
+                ? "Conectado"
+                : flow
+                  ? "Gerar outro código"
+                  : "Conectar GitHub"}
             </button>
           </div>
         </div>

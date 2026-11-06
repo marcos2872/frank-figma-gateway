@@ -430,6 +430,15 @@
   border-radius: 10px;
 }
 
+.wizard-copilot-code {
+  margin: 0;
+  font-family: Consolas, monospace;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wizard-progress-bar span {
     transition: none;
