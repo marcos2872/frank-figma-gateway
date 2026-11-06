@@ -22,6 +22,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] `ffg-core::secrets`: trait de armazenamento de segredos e implementação em memória.
 - [x] `src-tauri`: `RuntimePaths`, `SetupStore` com escrita atômica, `.bak` e quarentena.
 - [x] `src-tauri`: `AppState`, comandos `setup_*` e emissão de `setup://state`.
+- [x] `setup_get_state` reconcilia o runtime instalado (`active.json`) com o `setup.json`, para o
+  wizard não pedir download de novo depois de uma instalação concluída.
 - [x] `ui`: contratos TypeScript, bridge tipada, eventos e store do dashboard.
 - [x] `ui`: dashboard extraído de `App.tsx` e passando a consumir o store.
 - [ ] Troca atômica real no Windows com `ReplaceFileW` (o fallback atual remove + renomeia).
