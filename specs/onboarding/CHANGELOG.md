@@ -88,6 +88,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] Novo crate `ffg-runtime` com downloader HTTP: `Range`/`If-Range`, retomada por `.part` +
   `.meta.json`, rotação de espelhos, retry e verificação SHA-256/tamanho.
 - [x] Extração ZIP segura com validação de path/symlink/duplicata/zip bomb e entrypoint.
+- [x] Teto de entradas do ZIP ajustado para 50 mil (o pacote do Postgres do EDB tem ~22,6 mil:
+  locale, timezone, include); a proteção contra zip bomb segue no tamanho descomprimido e na razão.
 - [x] Instalação atômica em `runtime/<componente>/<versão>`, ponteiro `active.json` e rollback.
 - [x] Probe de `--version` com timeout.
 - [x] Fetch e verificação de manifesto assinado (online e offline).

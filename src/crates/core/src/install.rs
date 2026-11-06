@@ -9,7 +9,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 
-pub const MAX_ZIP_ENTRIES: usize = 10_000;
+/// O pacote do Postgres (EDB) tem ~23 mil entradas (locale/timezone/include),
+/// por isso o teto é folgado; a proteção real contra zip bomb é o limite de
+/// bytes descomprimidos e a razão de compressão.
+pub const MAX_ZIP_ENTRIES: usize = 50_000;
 pub const MAX_UNCOMPRESSED_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 pub const MAX_COMPRESSION_RATIO: u64 = 200;
 
@@ -314,6 +317,17 @@ mod tests {
             validate_zip_entries(&duplicate, None).expect_err("must fail"),
             InstallError::DuplicateEntry("a.txt".to_owned())
         );
+    }
+
+    #[test]
+    fn rejects_archives_with_too_many_entries() {
+        let entries: Vec<ZipEntry> = (0..=MAX_ZIP_ENTRIES)
+            .map(|index| ZipEntry::file(format!("file-{index}"), 1, 1))
+            .collect();
+        assert!(matches!(
+            validate_zip_entries(&entries, None),
+            Err(InstallError::TooManyEntries(_))
+        ));
     }
 
     #[test]
