@@ -513,6 +513,7 @@ impl SupervisorError {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     fn spec(name: ServiceName, script: &str) -> ServiceSpec {
         ServiceSpec {
             name,
