@@ -122,6 +122,17 @@ export function StepRuntime({ onNext }: WizardStepProps) {
           {installed ? "Instalado" : "Baixar e instalar LiteLLM"}
         </button>
         {installed ? (
+          <button
+            type="button"
+            className="secondary"
+            disabled={Boolean(operationId)}
+            onClick={() => void install()}
+            title="Baixa de novo quando o release do runtime muda (mesma versão, build novo)"
+          >
+            Reinstalar runtime
+          </button>
+        ) : null}
+        {installed ? (
           <button type="button" disabled={busy} onClick={() => void continueInstalled()}>
             Continuar
           </button>
