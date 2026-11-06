@@ -24,6 +24,7 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] `src-tauri`: `AppState`, comandos `setup_*` e emissão de `setup://state`.
 - [x] `ui`: contratos TypeScript, bridge tipada, eventos e store do dashboard.
 - [x] `ui`: dashboard extraído de `App.tsx` e passando a consumir o store.
+- [ ] Troca atômica real no Windows com `ReplaceFileW` (o fallback atual remove + renomeia).
 - [ ] Validação de compilação/execução no Windows (Tauri, registry, keyring).
 - [ ] Adapter `keyring`/Credential Manager (previsto para F5, quando as credenciais entram em uso).
 
@@ -31,9 +32,31 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 - `cargo fmt --all -- --check`
 - `cargo clippy -p ffg-core --all-targets -- -D warnings`
-- `cargo test -p ffg-core`
+- `cargo test -p ffg-core` — 47 testes passando.
+- `cargo llvm-cov -p ffg-core --fail-under-lines 80` — 93,66% de linhas.
 - `pnpm build`
 - `python3 scripts/check_docs.py`
+- `cargo clippy -p frank-figma-gateway --all-targets --target x86_64-pc-windows-gnu -- -D warnings`
+  (check cruzado com um `windres` stub; valida tipos/lints, não recursos nem link).
 
 > O build completo do app Tauri não roda neste ambiente Linux por falta de `dbus-1`/WebKitGTK.
 > A validação do app fica pendente para o Windows, conforme combinado.
+
+### Próximo passo
+
+- F1 — núcleo puro: manifesto assinado, planos de download/instalação, config do LiteLLM,
+  catálogo de providers, env plan e journal de integração.
+
+### Como validar no Windows
+
+```powershell
+cd src
+pnpm install --frozen-lockfile
+pnpm build
+cargo fmt --all -- --check
+cargo clippy -p ffg-core --all-targets -- -D warnings
+cargo test -p ffg-core
+cargo llvm-cov -p ffg-core --fail-under-lines 80
+cargo clippy -p frank-figma-gateway --all-targets -- -D warnings
+pnpm tauri build --no-bundle
+```

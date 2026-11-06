@@ -1,0 +1,196 @@
+import { isTauri } from "../lib/bridge";
+import type {
+  ServiceState,
+  ServiceStatus,
+  SetupStatus,
+  StepId,
+  StepStatus,
+} from "../lib/contracts";
+import { useAppStore } from "../state/AppStore";
+
+const serviceStateLabel: Record<ServiceState, string> = {
+  stopped: "Parado",
+  starting: "Iniciando",
+  running: "Rodando",
+  degraded: "Degradado",
+  failed: "Falhou",
+  stopping: "Parando",
+};
+
+const setupStatusLabel: Record<SetupStatus, string> = {
+  notStarted: "Não iniciado",
+  inProgress: "Em andamento",
+  completed: "Concluído",
+  needsAttention: "Requer atenção",
+};
+
+const stepLabel: Record<StepId, string> = {
+  welcome: "Boas-vindas",
+  runtime: "Runtime LiteLLM",
+  provider: "Provedor",
+  models: "Modelos e fallback",
+  figma: "Integração com o Figma",
+  finish: "Teste final",
+};
+
+const stepStatusLabel: Record<StepStatus, string> = {
+  pending: "Pendente",
+  inProgress: "Em andamento",
+  done: "Concluído",
+  skipped: "Pulado",
+  failed: "Falhou",
+};
+
+function StatusCard({ service }: { service: ServiceStatus }) {
+  return (
+    <article className={`status-card status-${service.state}`}>
+      <header>
+        <span className="status-dot" aria-hidden="true" />
+        <strong>{service.name}</strong>
+      </header>
+      <p>{serviceStateLabel[service.state]}</p>
+      {service.detail ? <small>{service.detail}</small> : null}
+    </article>
+  );
+}
+
+export default function Dashboard() {
+  const {
+    info,
+    services,
+    setup,
+    busy,
+    message,
+    reload,
+    startServices,
+    stopServices,
+    installFigma,
+    removeFigma,
+  } = useAppStore();
+
+  return (
+    <main className="shell">
+      <header className="hero">
+        <img src="/logo.svg" alt="" width={56} height={56} />
+        <div>
+          <h1>frank-figma-gateway</h1>
+          <p>
+            {isTauri ? "Tauri conectado" : "Modo navegador (comandos indisponíveis)"}
+            {info ? ` · v${info.version}` : ""}
+          </p>
+        </div>
+      </header>
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Serviços</h2>
+          <div className="actions">
+            <button
+              type="button"
+              disabled={busy || !isTauri}
+              onClick={() => void startServices()}
+            >
+              Iniciar
+            </button>
+            <button
+              type="button"
+              disabled={busy || !isTauri}
+              onClick={() => void stopServices()}
+            >
+              Parar
+            </button>
+          </div>
+        </div>
+        <div className="status-grid">
+          {services.map((service) => (
+            <StatusCard key={service.name} service={service} />
+          ))}
+        </div>
+        <small className="hint">
+          Supervisor real e sidecars ainda são stub neste scaffold.
+        </small>
+      </section>
+
+      {setup ? (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Configuração</h2>
+            <span className={`badge badge-${setup.status}`}>
+              {setupStatusLabel[setup.status]}
+            </span>
+          </div>
+          <p className="hint">
+            Passo atual: <strong>{stepLabel[setup.currentStep]}</strong> · revisão{" "}
+            {setup.revision}
+          </p>
+          <ol className="steps">
+            {setup.steps.map((step) => (
+              <li
+                key={step.id}
+                className={`step step-${step.status}${
+                  step.stale ? " step-stale" : ""
+                }`}
+              >
+                <span className="status-dot" aria-hidden="true" />
+                <span>{stepLabel[step.id]}</span>
+                <small>
+                  {step.stale ? "desatualizado" : stepStatusLabel[step.status]}
+                </small>
+              </li>
+            ))}
+          </ol>
+          <div className="actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || !isTauri}
+              onClick={() => void reload()}
+            >
+              Recarregar estado
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="panel">
+        <h2>Integração com o Figma</h2>
+        <p>
+          Instala a CA local, configura <code>HTTPS_PROXY</code> e sobe o proxy MITM. Reversível.
+        </p>
+        <div className="actions">
+          <button
+            type="button"
+            disabled={busy || !isTauri}
+            onClick={() => void installFigma()}
+          >
+            Instalar integração
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy || !isTauri}
+            onClick={() => void removeFigma()}
+          >
+            Remover
+          </button>
+        </div>
+      </section>
+
+      {info ? (
+        <section className="panel">
+          <h2>Modelos</h2>
+          <p>{info.models.join(" · ")}</p>
+          <small className="hint">Prefixo interceptado: {info.proxyPrefix}</small>
+        </section>
+      ) : null}
+
+      {message ? <p className="message">{message}</p> : null}
+
+      <footer>
+        <small>
+          LiteLLM ainda não é baixado neste scaffold. Veja <code>docs/onboarding.md</code>.
+        </small>
+      </footer>
+    </main>
+  );
+}

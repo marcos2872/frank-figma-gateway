@@ -1,5 +1,9 @@
 mod commands;
+mod events;
 mod logging;
+mod paths;
+mod setup_store;
+mod state;
 mod supervisor;
 mod tray;
 
@@ -20,15 +24,25 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(logging::plugin())
         .invoke_handler(tauri::generate_handler![
-            commands::app_info,
-            commands::preview_rewrite,
-            commands::service_status,
-            commands::start_services,
-            commands::stop_services,
-            commands::install_figma_integration,
-            commands::remove_figma_integration,
+            commands::app::app_info,
+            commands::app::preview_rewrite,
+            commands::services::service_status,
+            commands::services::start_services,
+            commands::services::stop_services,
+            commands::services::install_figma_integration,
+            commands::services::remove_figma_integration,
+            commands::setup::setup_get_state,
+            commands::setup::setup_begin_step,
+            commands::setup::setup_complete_step,
+            commands::setup::setup_set_options,
+            commands::setup::setup_reset,
         ])
         .setup(|app| {
+            let data_dir = app.path().app_local_data_dir()?;
+            let paths = paths::RuntimePaths::new(data_dir);
+            paths.ensure()?;
+            app.manage(state::AppState::new(paths));
+
             tray::build(app)?;
             if !std::env::args().any(|arg| arg == "--hidden") {
                 if let Some(window) = app.get_webview_window("main") {

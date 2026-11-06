@@ -1127,12 +1127,14 @@ dependencies = [
  "ffg-core",
  "log",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
  "tauri-plugin-log",
  "tauri-plugin-notification",
  "tauri-plugin-single-instance",
+ "time",
 ]
 
 [[package]]

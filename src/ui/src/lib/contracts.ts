@@ -1,0 +1,235 @@
+export type ErrorCode =
+  | "unsupportedPlatform"
+  | "dataDirNotWritable"
+  | "diskSpace"
+  | "network"
+  | "timeout"
+  | "manifestSignature"
+  | "manifestSchema"
+  | "appTooOld"
+  | "componentNotAllowed"
+  | "hashMismatch"
+  | "sizeMismatch"
+  | "rangeInvalid"
+  | "zipUnsafe"
+  | "extraction"
+  | "versionProbe"
+  | "versionMismatch"
+  | "activation"
+  | "rollback"
+  | "portInUse"
+  | "processSpawn"
+  | "processExited"
+  | "healthTimeout"
+  | "providerAuth"
+  | "providerForbidden"
+  | "providerModelNotFound"
+  | "providerRateLimited"
+  | "providerBadRequest"
+  | "providerUnavailable"
+  | "copilotAuthPending"
+  | "copilotAuthExpired"
+  | "copilotPlanMissing"
+  | "copilotDatabase"
+  | "caGeneration"
+  | "caTrust"
+  | "caRemove"
+  | "envRead"
+  | "envWrite"
+  | "envRestore"
+  | "figmaNotFound"
+  | "figmaRunning"
+  | "figmaRestart"
+  | "proxyTls"
+  | "proxyRewrite"
+  | "proxyUpstream"
+  | "configInvalid"
+  | "configApply"
+  | "stateCorrupt"
+  | "stateSchema"
+  | "stepOrder"
+  | "stepNotStarted"
+  | "stepCannotSkip"
+  | "internal";
+
+export interface UiError {
+  code: ErrorCode;
+  message: string;
+  detail?: string | null;
+  retryable: boolean;
+  action?: string | null;
+}
+
+export type StepId =
+  | "welcome"
+  | "runtime"
+  | "provider"
+  | "models"
+  | "figma"
+  | "finish";
+
+export type StepStatus =
+  | "pending"
+  | "inProgress"
+  | "done"
+  | "skipped"
+  | "failed";
+
+export type SetupStatus =
+  | "notStarted"
+  | "inProgress"
+  | "completed"
+  | "needsAttention";
+
+export interface StepState {
+  id: StepId;
+  status: StepStatus;
+  stale: boolean;
+  completedAt?: string | null;
+  skippedReason?: string | null;
+  lastError?: UiError | null;
+}
+
+export interface RuntimeState {
+  litellmVersion?: string | null;
+  activeLitellm?: string | null;
+  pgsqlVersion?: string | null;
+  activePgsql?: string | null;
+}
+
+export type ProviderKind =
+  | "openRouter"
+  | "azureAi"
+  | "anthropic"
+  | "openAi"
+  | "gemini"
+  | "gitHubCopilot"
+  | "openAiCompatible";
+
+export type TestStatus = "notTested" | "ok" | "failed" | "skipped";
+
+export interface ProviderSelection {
+  profileId: string;
+  kind: ProviderKind;
+  label: string;
+  apiBase?: string | null;
+  apiVersion?: string | null;
+  deployment?: string | null;
+  secretRef?: string | null;
+  testStatus: TestStatus;
+  testedAt?: string | null;
+}
+
+export interface ModelRoute {
+  publicName: string;
+  providerModel: string;
+  credentialName?: string | null;
+  apiKeyEnv?: string | null;
+  apiBase?: string | null;
+  extra: Record<string, string>;
+}
+
+export interface ModelSettings {
+  routes: ModelRoute[];
+  fallbacks: Record<string, string[]>;
+  appliedAt?: string | null;
+  configRevision?: string | null;
+}
+
+export type AuthStatus =
+  | "notStarted"
+  | "waitingForUser"
+  | "connected"
+  | "expired"
+  | "failed";
+
+export interface CopilotState {
+  enabled: boolean;
+  postgresReady: boolean;
+  databaseName: string;
+  credentialName: string;
+  connected: boolean;
+  githubLogin?: string | null;
+  authStatus: AuthStatus;
+  lastError?: UiError | null;
+}
+
+export interface ServicePorts {
+  litellm?: number | null;
+  proxy?: number | null;
+  postgres?: number | null;
+}
+
+export interface FigmaState {
+  detected: boolean;
+  installPath?: string | null;
+  version?: string | null;
+  running: boolean;
+  integrationActive: boolean;
+  caThumbprint?: string | null;
+  envInstalled: boolean;
+  proxyPort?: number | null;
+  lastValidatedAt?: string | null;
+  skipped: boolean;
+}
+
+export interface OnboardingState {
+  offlineMode: boolean;
+  skippedFigma: boolean;
+  startWithWindows: boolean;
+  completedAt?: string | null;
+}
+
+export interface SetupState {
+  schemaVersion: number;
+  revision: number;
+  status: SetupStatus;
+  currentStep: StepId;
+  steps: StepState[];
+  runtime: RuntimeState;
+  provider?: ProviderSelection | null;
+  copilot: CopilotState;
+  models: ModelSettings;
+  services: ServicePorts;
+  figma: FigmaState;
+  onboarding: OnboardingState;
+  updatedAt?: string | null;
+}
+
+export type StepOutcome =
+  | { kind: "done" }
+  | { kind: "skipped"; reason: string };
+
+export type ResetScope = "wizard" | "figma" | "all";
+
+export type ServiceState =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "degraded"
+  | "failed"
+  | "stopping";
+
+export type HealthState = "unknown" | "ok" | "timeout" | "error";
+
+export interface ServiceStatus {
+  name: string;
+  state: ServiceState;
+  detail?: string | null;
+  port?: number | null;
+  health: HealthState;
+  restartCount: number;
+  lastError?: UiError | null;
+}
+
+export interface AppInfo {
+  name: string;
+  version: string;
+  models: string[];
+  proxyPrefix: string;
+}
+
+export interface SetupResult {
+  ok: boolean;
+  message: string;
+}

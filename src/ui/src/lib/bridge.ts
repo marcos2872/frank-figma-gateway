@@ -1,36 +1,48 @@
 import { invoke } from "@tauri-apps/api/core";
+import type {
+  AppInfo,
+  ResetScope,
+  ServiceStatus,
+  SetupResult,
+  SetupState,
+  StepId,
+  StepOutcome,
+} from "./contracts";
 
-export type ServiceState =
-  | "stopped"
-  | "starting"
-  | "running"
-  | "degraded"
-  | "failed";
-
-export interface ServiceStatus {
-  name: string;
-  state: ServiceState;
-  detail?: string | null;
-}
-
-export interface AppInfo {
-  name: string;
-  version: string;
-  models: string[];
-  proxyPrefix: string;
-}
-
-export interface SetupResult {
-  ok: boolean;
-  message: string;
-}
+export type {
+  AppInfo,
+  ResetScope,
+  ServiceStatus,
+  SetupResult,
+  SetupState,
+  StepId,
+  StepOutcome,
+} from "./contracts";
 
 export const isTauri = "__TAURI_INTERNALS__" in window;
 
 const fallbackServices: ServiceStatus[] = [
-  { name: "postgres", state: "stopped", detail: "perfil Copilot" },
-  { name: "litellm", state: "stopped", detail: null },
-  { name: "proxy", state: "stopped", detail: null },
+  {
+    name: "postgres",
+    state: "stopped",
+    detail: "perfil Copilot",
+    health: "unknown",
+    restartCount: 0,
+  },
+  {
+    name: "litellm",
+    state: "stopped",
+    detail: null,
+    health: "unknown",
+    restartCount: 0,
+  },
+  {
+    name: "proxy",
+    state: "stopped",
+    detail: null,
+    health: "unknown",
+    restartCount: 0,
+  },
 ];
 
 export async function getAppInfo(): Promise<AppInfo> {
@@ -59,6 +71,35 @@ export async function installFigmaIntegration(): Promise<SetupResult> {
 
 export async function removeFigmaIntegration(): Promise<SetupResult> {
   return invoke<SetupResult>("remove_figma_integration");
+}
+
+export async function getSetupState(): Promise<SetupState> {
+  return invoke<SetupState>("setup_get_state");
+}
+
+export async function beginStep(step: StepId): Promise<SetupState> {
+  return invoke<SetupState>("setup_begin_step", { step });
+}
+
+export async function completeStep(
+  step: StepId,
+  outcome: StepOutcome,
+): Promise<SetupState> {
+  return invoke<SetupState>("setup_complete_step", { step, outcome });
+}
+
+export async function setSetupOptions(options: {
+  offlineMode?: boolean;
+  startWithWindows?: boolean;
+}): Promise<SetupState> {
+  return invoke<SetupState>("setup_set_options", {
+    offlineMode: options.offlineMode ?? null,
+    startWithWindows: options.startWithWindows ?? null,
+  });
+}
+
+export async function resetSetup(scope: ResetScope): Promise<SetupState> {
+  return invoke<SetupState>("setup_reset", { scope });
 }
 
 export function browserFallback(): ServiceStatus[] {
