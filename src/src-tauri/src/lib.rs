@@ -36,12 +36,16 @@ pub fn run() {
             commands::setup::setup_complete_step,
             commands::setup::setup_set_options,
             commands::setup::setup_reset,
+            commands::runtime::runtime_status,
+            commands::runtime::runtime_fetch_manifest,
+            commands::runtime::runtime_install,
+            commands::runtime::runtime_cancel,
         ])
         .setup(|app| {
             let data_dir = app.path().app_local_data_dir()?;
             let paths = paths::RuntimePaths::new(data_dir);
             paths.ensure()?;
-            app.manage(state::AppState::new(paths));
+            app.manage(state::AppState::new(paths)?);
 
             tray::build(app)?;
             if !std::env::args().any(|arg| arg == "--hidden") {

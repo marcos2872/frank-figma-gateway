@@ -1,5 +1,5 @@
 [workspace]
-members = ["src-tauri", "crates/core"]
+members = ["src-tauri", "crates/core", "crates/runtime", "tools/manifest-signer", "tools/manifest-verify"]
 resolver = "2"
 
 [workspace.package]

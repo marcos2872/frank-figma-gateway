@@ -4,6 +4,7 @@ export type ErrorCode =
   | "diskSpace"
   | "network"
   | "timeout"
+  | "cancelled"
   | "manifestSignature"
   | "manifestSchema"
   | "appTooOld"

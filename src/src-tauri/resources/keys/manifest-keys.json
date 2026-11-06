@@ -1,0 +1,10 @@
+[
+  {
+    "keyId": "dev-placeholder",
+    "algorithm": "ed25519",
+    "publicKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "status": "retired",
+    "notBefore": null,
+    "notAfter": null
+  }
+]

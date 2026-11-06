@@ -13,6 +13,7 @@ pub enum ErrorCode {
     DiskSpace,
     Network,
     Timeout,
+    Cancelled,
     ManifestSignature,
     ManifestSchema,
     AppTooOld,

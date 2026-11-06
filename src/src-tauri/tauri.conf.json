@@ -29,6 +29,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": [
+      "resources/keys/manifest-keys.json",
+      "resources/runtime-policy.json"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/64x64.png",

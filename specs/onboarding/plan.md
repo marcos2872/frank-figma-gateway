@@ -1149,6 +1149,9 @@ pub fn plan_proxy_env(
 
 ### F2 — Artefatos de runtime e CD mínimo (ZIPs + manifesto assinado)
 
+**Status:** workflow, scripts, gerador e ferramentas criados; build real e publicação pendentes de
+validação no Windows.
+
 **Objetivo:** produzir os artefatos reais que o downloader e o onboarding consomem.
 
 **Depende de:** F1 (formato do manifesto).
@@ -1185,6 +1188,8 @@ pub fn plan_proxy_env(
 ---
 
 ### F3 — Downloader e instalação atômica (`ffg-runtime`)
+
+**Status:** crate, testes e comandos Tauri implementados; E2E com artefatos reais pendente no Windows.
 
 **Objetivo:** baixar, pausar/retomar, verificar, extrair, validar e ativar runtimes com rollback.
 

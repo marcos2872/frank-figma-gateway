@@ -63,24 +63,58 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [ ] Geração/assinatura dos artefatos e publicação do manifesto entram no CD (F2).
 - [ ] Chamadas reais de management/device flow do Copilot entram em F9.
 
+### F2 — Artefatos de runtime e CD mínimo
+
+- [x] Workflow `.github/workflows/release.yml` para tag `v*`: build Windows, manifesto, assinatura,
+  verificação e publicação.
+- [x] `scripts/build-litellm-runtime.ps1` (PyInstaller one-folder + validação `--version`).
+- [x] `scripts/build-pgsql-runtime.ps1` (binários oficiais do EDB + `postgres --version`).
+- [x] `scripts/manifest.mjs` (SHA-256, tamanho, URL, `installedSize`, entrypoint).
+- [x] Ferramentas `manifest-signer` e `manifest-verify` (Ed25519, `keyId`, janela de validade).
+- [x] Recursos embutidos: `resources/runtime-policy.json` e `resources/keys/manifest-keys.json`
+  (placeholder `retired`).
+- [x] `docs/release.md` e entrada no índice da documentação.
+- [ ] Validar o build real do LiteLLM/Postgres e o workflow no Windows.
+- [ ] Substituir o placeholder pela chave pública real antes do release público.
+
+### F3 — Downloader e instalação atômica
+
+- [x] Novo crate `ffg-runtime` com downloader HTTP: `Range`/`If-Range`, retomada por `.part` +
+  `.meta.json`, rotação de espelhos, retry e verificação SHA-256/tamanho.
+- [x] Extração ZIP segura com validação de path/symlink/duplicata/zip bomb e entrypoint.
+- [x] Instalação atômica em `runtime/<componente>/<versão>`, ponteiro `active.json` e rollback.
+- [x] Probe de `--version` com timeout.
+- [x] Fetch e verificação de manifesto assinado (online e offline).
+- [x] `RuntimeManager` como fachada de manifesto/download/instalação.
+- [x] Comandos Tauri `runtime_status`, `runtime_fetch_manifest`, `runtime_install` e
+  `runtime_cancel`, com evento `download://progress`.
+- [x] `AppState` embute as chaves públicas e a política de runtime.
+- [x] Testes com `wiremock` para download/resume/hash, extração, instalação, manifesto e offline.
+- [ ] E2E real de download/instalação no Windows (artefatos de F2, paths longos/acentos).
+- [ ] Ligar os comandos ao wizard/dashboard (F10).
+
 ### Evidências locais (Linux)
 
 - `cargo fmt --all -- --check`
-- `cargo clippy -p ffg-core --all-targets -- -D warnings`
+- `cargo clippy -p ffg-core -p ffg-runtime -p manifest-signer -p manifest-verify --all-targets -- -D warnings`
 - `cargo test -p ffg-core` — 115 testes passando.
-- `cargo llvm-cov -p ffg-core --fail-under-lines 80` — 92,21% de linhas.
+- `cargo test -p ffg-runtime` — 24 testes passando.
+- `cargo llvm-cov -p ffg-core --fail-under-lines 80` — 92,23% de linhas.
+- `cargo llvm-cov -p ffg-runtime --fail-under-lines 70` — 86,47% de linhas.
+- `node scripts/manifest.mjs ...` — manifesto gerado e JSON validado.
+- `manifest-signer` + `manifest-verify` — assinatura e verificação testadas localmente.
 - `pnpm build`
-- `python3 scripts/check_docs.py`
+- `python3 scripts/check_docs.py` — 13 markdown, 4 JSON.
 - `cargo clippy -p frank-figma-gateway --all-targets --target x86_64-pc-windows-gnu -- -D warnings`
-  (check cruzado com um `windres` stub; valida tipos/lints, não recursos nem link).
+  com `windres` stub (valida tipos/lints; recursos e link ficam para o CI Windows).
 
 > O build completo do app Tauri não roda neste ambiente Linux por falta de `dbus-1`/WebKitGTK.
 > A validação do app fica pendente para o Windows, conforme combinado.
 
 ### Próximo passo
 
-- F2 — artefatos de runtime e CD mínimo (ZIPs, manifesto assinado, verificação no CI).
-- F3 — crate `ffg-runtime`: download com Range/resume, verificação, extração ZIP segura e ativação.
+- F4 — supervisor de sidecars, Job Object, health checks, portas e logs.
+- F5 — config transacional do LiteLLM, providers por API key e teste de conexão.
 - O shell do wizard (modal + carrossel) já foi adiantado; o conteúdo real de cada etapa entra junto
   com as fases que implementam os comandos correspondentes.
 

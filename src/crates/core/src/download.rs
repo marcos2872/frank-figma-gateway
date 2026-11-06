@@ -127,6 +127,12 @@ pub struct MirrorPlan {
     pub attempts_per_mirror: u32,
 }
 
+fn is_loopback_http(url: &str) -> bool {
+    url.starts_with("http://127.0.0.1:")
+        || url.starts_with("http://localhost:")
+        || url.starts_with("http://[::1]:")
+}
+
 impl MirrorPlan {
     pub fn new(
         primary: &str,
@@ -143,7 +149,7 @@ impl MirrorPlan {
             if url.is_empty() || urls.iter().any(|existing| existing == url) {
                 continue;
             }
-            if !url.starts_with("https://") {
+            if !url.starts_with("https://") && !is_loopback_http(url) {
                 return Err(DownloadError::InvalidUrl(url.to_owned()));
             }
             urls.push(url.to_owned());
@@ -393,6 +399,7 @@ mod tests {
             MirrorPlan::new("http://example.invalid/a.zip", vec![], 1).expect_err("must fail"),
             DownloadError::InvalidUrl("http://example.invalid/a.zip".to_owned())
         );
+        assert!(MirrorPlan::new("http://127.0.0.1:8080/a.zip", vec![], 1).is_ok());
         assert_eq!(
             MirrorPlan::new("https://example.invalid/a.zip", vec![], 0).expect_err("must fail"),
             DownloadError::InvalidAttempts
