@@ -89,6 +89,14 @@ pub fn run() {
                     .await;
             });
 
+            // Se a integração com o Figma estava ativa, o proxy precisa voltar a
+            // subir junto com o app (o env já aponta para ele).
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let state = handle.state::<state::AppState>();
+                restore_integration(&state).await;
+            });
+
             tray::build(app)?;
             if !std::env::args().any(|arg| arg == "--hidden") {
                 if let Some(window) = app.get_webview_window("main") {
@@ -105,4 +113,31 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("failed to run the Tauri application");
+}
+
+/// Restaura o proxy quando o journal da integração está `active`.
+///
+/// O env em `HKCU\Environment` continua apontando para o proxy depois de um
+/// restart; sem subir o proxy, todo o tráfego do Figma falharia.
+async fn restore_integration(state: &state::AppState) {
+    let path = state.paths.integration_file();
+    let Ok(raw) = std::fs::read(&path) else {
+        return;
+    };
+    let Ok(journal) = serde_json::from_slice::<ffg_core::integration::IntegrationJournal>(&raw)
+    else {
+        log::warn!("journal da integração inválido; restauração ignorada");
+        return;
+    };
+    if journal.status != ffg_core::integration::IntegrationStatus::Active {
+        return;
+    }
+
+    match commands::proxy::ensure_proxy(state).await {
+        Ok(status) => log::info!(
+            "integração ativa: proxy restaurado na porta {}",
+            status.port
+        ),
+        Err(error) => log::warn!("integração ativa, mas o proxy não subiu: {}", error.message),
+    }
 }

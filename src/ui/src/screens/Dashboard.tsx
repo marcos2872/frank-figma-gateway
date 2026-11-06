@@ -83,7 +83,7 @@ export default function Dashboard() {
           ))}
         </div>
         <small className="hint">
-          Supervisor real e sidecars ainda são stub neste scaffold.
+          Sidecars supervisionados pelo app, com health check e restart automático.
         </small>
       </section>
 
@@ -171,7 +171,8 @@ export default function Dashboard() {
 
       <footer>
         <small>
-          LiteLLM ainda não é baixado neste scaffold. Veja <code>docs/onboarding.md</code>.
+          O runtime do LiteLLM é baixado no onboarding e verificado por assinatura
+          e SHA-256.
         </small>
       </footer>
     </main>
