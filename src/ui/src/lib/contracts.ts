@@ -235,3 +235,210 @@ export interface SetupResult {
   ok: boolean;
   message: string;
 }
+
+export type ComponentId = "litellm" | "pgsql";
+
+export interface ComponentManifest {
+  version: string;
+  url: string;
+  sha256: string;
+  size: number;
+  installedSize?: number | null;
+  entrypoint?: string | null;
+  versionArgs?: string[];
+  minAppVersion?: string | null;
+}
+
+export interface RuntimeManifest {
+  schemaVersion: number;
+  generatedAt?: string | null;
+  minAppVersion?: string | null;
+  litellm: ComponentManifest;
+  pgsql?: ComponentManifest | null;
+}
+
+export interface ActiveComponent {
+  version: string;
+  path: string;
+}
+
+export interface ActiveRuntime {
+  litellm?: ActiveComponent | null;
+  pgsql?: ActiveComponent | null;
+}
+
+export interface Installation {
+  component: ComponentId;
+  version: string;
+  path: string;
+  previous?: ActiveComponent | null;
+}
+
+export type DownloadPhase = "downloading" | "verifying" | "complete";
+
+export interface DownloadProgress {
+  component: ComponentId;
+  downloaded: number;
+  total: number;
+  attempt: number;
+  phase: DownloadPhase;
+}
+
+export type FieldKind = "text" | "password" | "url" | "select";
+
+export interface ProviderField {
+  id: string;
+  label: string;
+  kind: FieldKind;
+  required: boolean;
+  secret: boolean;
+  placeholder?: string | null;
+}
+
+export interface ProviderDescriptor {
+  kind: ProviderKind;
+  label: string;
+  description: string;
+  requiresPostgres: boolean;
+  fields: ProviderField[];
+  recommendedModel?: string | null;
+}
+
+export interface ProviderProfileInput {
+  kind: ProviderKind;
+  label: string;
+  profileId?: string | null;
+  apiKey?: string | null;
+  apiBase?: string | null;
+  apiVersion?: string | null;
+  deployment?: string | null;
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  status: number;
+  message: string;
+  latencyMs: number;
+}
+
+export interface CaStatus {
+  generated: boolean;
+  installed: boolean;
+  thumbprint?: string | null;
+  certPath?: string | null;
+}
+
+export interface ProxyStatus {
+  running: boolean;
+  port: number;
+  connections: number;
+  aiRequests: number;
+  failures: number;
+  firstAiRequestAt?: string | null;
+  lastError?: string | null;
+}
+
+export interface ProxySelfTest {
+  ok: boolean;
+  status: number;
+  message: string;
+}
+
+export interface FigmaInfo {
+  detected: boolean;
+  path?: string | null;
+  version?: string | null;
+  running: boolean;
+}
+
+export interface IntegrationView {
+  status: "inactive" | "active" | "partial" | "removing";
+  caInstalled: boolean;
+  caThumbprint?: string | null;
+  proxyRunning: boolean;
+  proxyPort?: number | null;
+  envInstalled: boolean;
+  figma: FigmaInfo;
+}
+
+export interface IntegrationCheck {
+  id: string;
+  ok: boolean;
+  blocking: boolean;
+  message: string;
+}
+
+export interface IntegrationValidation {
+  ok: boolean;
+  checks: IntegrationCheck[];
+}
+
+export interface PostgresStatus {
+  initialized: boolean;
+  running: boolean;
+  port?: number | null;
+  dataDir: string;
+}
+
+export interface CopilotStatus {
+  copilot: CopilotState;
+  postgres: PostgresStatus;
+}
+
+export type CheckId =
+  | "platform"
+  | "dataDir"
+  | "disk"
+  | "internet"
+  | "figma"
+  | "webView2"
+  | "ports"
+  | "existingProxy"
+  | "admin"
+  | "clock";
+
+export type CheckStatus = "pass" | "warn" | "fail" | "unknown";
+
+export interface EnvironmentCheck {
+  id: CheckId;
+  status: CheckStatus;
+  message: string;
+  detail?: string | null;
+}
+
+export interface FigmaDetection {
+  found: boolean;
+  path?: string | null;
+  version?: string | null;
+  running: boolean;
+}
+
+export interface ProxyEnvironment {
+  httpsProxy?: string | null;
+  httpProxy?: string | null;
+  noProxy?: string | null;
+}
+
+export interface EnvironmentReport {
+  os: string;
+  arch: string;
+  supported: boolean;
+  dataDir: string;
+  freeDiskBytes: number;
+  requiredDiskBytes: number;
+  checks: EnvironmentCheck[];
+  figma: FigmaDetection;
+  existingProxy: ProxyEnvironment;
+  ports: Array<{ port: number; available: boolean; detail?: string | null }>;
+  blocking: boolean;
+  warnings: string[];
+}
+
+export type LogStream = "stdout" | "stderr";
+
+export interface LogLine {
+  stream: LogStream;
+  line: string;
+}
+
+export type ServiceName = "postgres" | "litellm" | "proxy";

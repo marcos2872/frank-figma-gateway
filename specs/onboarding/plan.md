@@ -1538,6 +1538,9 @@ Copilot bloqueado no spike da API do LiteLLM `v1.108.1`.
 
 ### F10 — Wizard completo, dashboard, tray e acessibilidade
 
+**Status:** wizard ligado aos comandos reais (welcome/runtime/provider/models/figma/finish), modal +
+carrossel, auto-abertura no first-run e tray; testes de UI/E2E Windows pendentes.
+
 **Objetivo:** entregar a experiência de onboarding dos 5 passos, com retomada, reconfiguração e modo offline.
 
 **Depende de:** F3, F5, F8, F9 (shell/UI pode começar antes com bridge mockada).

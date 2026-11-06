@@ -26,3 +26,13 @@ export function onWizardOpen(
     callback(event.payload),
   );
 }
+
+import type { DownloadProgress } from "./contracts";
+
+export function onDownloadProgress(
+  callback: (progress: DownloadProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<DownloadProgress>("download://progress", (event) =>
+    callback(event.payload),
+  );
+}

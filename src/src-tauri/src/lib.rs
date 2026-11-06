@@ -48,6 +48,7 @@ pub fn run() {
             commands::copilot::copilot_disconnect,
             commands::copilot::copilot_begin_auth,
             commands::copilot::copilot_poll_auth,
+            commands::diagnostics::environment_report,
             commands::setup::setup_get_state,
             commands::setup::setup_begin_step,
             commands::setup::setup_complete_step,

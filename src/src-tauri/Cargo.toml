@@ -20,6 +20,7 @@ ffg-supervisor = { path = "../crates/supervisor" }
 ffg-litellm = { path = "../crates/litellm" }
 ffg-proxy = { path = "../crates/proxy" }
 ffg-postgres = { path = "../crates/postgres" }
+fs2 = "0.4"
 hex = "0.4"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }

@@ -125,6 +125,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setInfo(nextInfo);
         setServices(nextServices);
         setSetup(nextSetup);
+        if (nextSetup.status !== "completed") {
+          setScreen("wizard");
+        }
       } catch (error) {
         if (!cancelled) setMessage(errorMessage(error));
       }

@@ -177,6 +177,109 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
   obrigatório da API do LiteLLM `v1.108.1`; os comandos retornam erro acionável por enquanto.
 - [ ] Backup/restore, upgrade de major e validação do cluster no Windows.
 
+### F10 — Wizard completo
+
+- [x] Modal + carrossel ligado aos passos reais: boas-vindas, runtime, provedor, modelos, Figma e conclusão.
+- [x] Passo 0 com `environment_report` (plataforma, data dir, disco, internet, Figma e proxy preexistente).
+- [x] Passo 1 com download/instalação do LiteLLM, progresso via `download://progress` e cancelamento.
+- [x] Passo 2 com catálogo de provedores, formulário dinâmico, salvar credencial e preparar Postgres do Copilot.
+- [x] Passo 3 com aliases `claude-opus-4-8`/`claude-haiku-4-5`, fallback, aplicação do config, start dos serviços e teste real no LiteLLM.
+- [x] Passo 4 com instalar/validar/remover/reiniciar Figma e checks da integração.
+- [x] Passo 5 com status dos serviços, saúde do LiteLLM, integração Figma, autostart e conclusão.
+- [x] First-run abre o wizard automaticamente; tray “Reconfigurar”/“Configurar Figma” abre o modal.
+- [ ] Importação offline (“Já tenho os pacotes”) ainda não tem comando/UI de file picker.
+- [ ] Testes de UI (Vitest/RTL/axe), teclado e leitor de tela pendentes.
+- [ ] E2E do wizard completo no Windows com artefatos reais.
+
+### Validação no Windows — pendências
+
+> Lista consolidada de tudo que ainda precisa ser executado/validado em uma máquina Windows antes de
+> considerar o onboarding pronto para release.
+
+**Toolchain e build**
+- [ ] `cargo clippy -p frank-figma-gateway --all-targets -- -D warnings` com MSVC.
+- [ ] `pnpm tauri build --no-bundle` e build do instalador NSIS/MSI.
+- [ ] WebView2 no Windows 10 limpo e CSP/capabilities do Tauri.
+- [ ] Empacotamento dos recursos `resources/keys` e `runtime-policy.json` no bundle.
+
+**Estado, segredos e arquivos**
+- [ ] `setup.json` com troca atômica real via `ReplaceFileW` (hoje remove + renomeia).
+- [ ] `ConfigStore` do LiteLLM com troca atômica real via `ReplaceFileW`.
+- [ ] Credential Manager via `keyring`: criar, ler, sobrescrever e apagar master/salt/provider/Postgres.
+- [ ] ACL dos arquivos de estado, chave DPAPI e senha temporária do Postgres.
+- [ ] Recuperação de `setup.json`/journal corrompidos e migração de schema.
+
+**Artefatos e release**
+- [ ] Build real do LiteLLM com PyInstaller, hidden imports, `litellm --version` e start do proxy.
+- [ ] Build real do Postgres EDB, layout `bin/postgres.exe`, `postgres --version` e licença.
+- [ ] Workflow `release.yml` em runner Windows; publicação de ZIPs + `manifest.json` + `.sig`.
+- [ ] Substituir a chave pública placeholder `retired` pela chave real e garantir `MANIFEST_SIGNING_KEY` no secret.
+- [ ] Verificar SHA-256/assinatura do manifesto e dos ZIPs no app.
+- [ ] `installedSize` real dos artefatos (hoje pode cair no tamanho do ZIP).
+
+**Runtime/download**
+- [ ] Download real, pausa/retomada após fechar/reabrir o app e cancelamento.
+- [ ] `Range`/`If-Range`, 206/200/416, ETag/Last-Modified e troca de espelho.
+- [ ] Extração com paths longos/acentos, antivírus/Defender e ZIP grande.
+- [ ] Probe `--version`, ativação atômica, `active.json` e rollback para versão anterior.
+- [ ] Importação offline por ZIP/manifesto assinado.
+
+**Supervisor e processos**
+- [ ] Job Object `KILL_ON_JOB_CLOSE`, kill tree e ausência de órfãos ao sair/crash.
+- [ ] Spawn real de LiteLLM/Postgres com args/env esperados.
+- [ ] Health TCP/HTTP, restart com backoff, limite de restarts e estado degradado.
+- [ ] Conflito de portas, portas persistidas e reinício após mudança de config.
+- [ ] Logs: redaction, rotação, tail e ausência de prompt/token.
+
+**LiteLLM e providers**
+- [ ] Start do LiteLLM com `config.yaml`, `LITELLM_MASTER_KEY`, `LITELLM_SALT_KEY` e `DATABASE_URL`.
+- [ ] Teste real de OpenRouter, Azure AI, Anthropic, OpenAI, Gemini e OpenAI-compatible/local.
+- [ ] Teste de 401/403/404/429/5xx, timeout e modelo inexistente.
+- [ ] Aplicação transacional do config + restart + rollback em falha.
+- [ ] Rotação de master key/salt e persistência no Credential Manager.
+
+**CA e proxy**
+- [ ] Instalar/remover CA em `CurrentUser\Root` sem admin, com thumbprint correto e idempotência.
+- [ ] `certutil -user -store Root` confirma a CA; Figma confia nela.
+- [ ] DPAPI protege/recupera a chave privada; ACL e política corporativa.
+- [ ] Proxy com Figma real: CONNECT, MITM `api.figma.com`, HTTP/2/ALPN, SSE e Upgrade/WebSocket.
+- [ ] Passthrough não-IA intacto e rewrite/auth apenas no prefixo de IA.
+- [ ] Self-test TLS + rewrite + LiteLLM e primeira requisição de IA.
+- [ ] Evitar loop de proxy e respeitar proxy corporativo preexistente.
+- [ ] Remoção da CA/env no uninstall e restauração exata do ambiente.
+
+**Integração Figma**
+- [ ] Leitura/escrita de `HKCU\Environment`, `NO_PROXY` e broadcast `WM_SETTINGCHANGE`.
+- [ ] Snapshot/restore exato, incluindo variáveis ausentes e proxy preexistente.
+- [ ] Detecção de `Figma.exe`, versão `app-*` e processo aberto.
+- [ ] Reiniciar Figma com aviso de trabalho não salvo e comportamento “depois”.
+- [ ] Journal `partial` após crash, rollback reverso env → proxy → CA e remoção idempotente.
+- [ ] Remover integração sem apagar LiteLLM/Postgres.
+
+**Postgres e Copilot**
+- [ ] `initdb` com caminho com espaço/acento, `--auth=scram-sha-256`, `--locale=C`.
+- [ ] Start, `pg_isready`, criação do banco `litellm` e ACL do data dir.
+- [ ] `DATABASE_URL` com senha URL-encoded e migrações do LiteLLM.
+- [ ] Backup/restore e upgrade de major.
+- [ ] Spike obrigatório da API de credential/device flow do Copilot no LiteLLM `v1.108.1`.
+- [ ] OAuth/device flow real, credential `github-copilot`, aliases e teste; erros de plano/429.
+- [ ] Desconectar/desabilitar/apagar dados do Copilot.
+
+**Wizard/UI**
+- [ ] First-run completo em VM Windows limpa, sem admin e sem runtime.
+- [ ] Baixar artefatos reais, escolher provider, aplicar modelos, instalar Figma e concluir.
+- [ ] Retomada ao fechar/reabrir em cada passo e “Reconfigurar” pelo tray.
+- [ ] Importação offline e pular Figma com badge pendente.
+- [ ] Testes Vitest/RTL/axe, navegação por teclado, foco, contraste e leitor de tela.
+- [ ] Comportamento com Figma aberto, proxy preexistente e política corporativa.
+
+**Segurança e release**
+- [ ] Nenhum token/prompt/header sensível em logs, eventos, estado ou diagnóstico.
+- [ ] Bind apenas em `127.0.0.1` e sem inbound firewall.
+- [ ] Assinatura de código do instalador e binários; SmartScreen.
+- [ ] Updater/assinatura do update, SBOM, licenças e remoção no uninstall.
+- [ ] E2E Windows com provider fake e smoke com provider real.
+
 ### Evidências locais (Linux)
 
 - `cargo fmt --all -- --check`
@@ -205,11 +308,10 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 ### Próximo passo
 
-- F10 — wizard completo: ligar setup, runtime, providers, CA/proxy, Figma e finish ao modal.
 - Spike obrigatório do Copilot: confirmar endpoints de credential/device flow no LiteLLM `v1.108.1`.
-- Validação Windows de HKCU, cert store, DPAPI, keyring, Job Object, proxy e Postgres real.
-- O shell do wizard (modal + carrossel) já foi adiantado; o conteúdo real de cada etapa entra junto
-  com as fases que implementam os comandos correspondentes.
+- Executar a checklist completa de validação no Windows acima.
+- F11 — E2E, caos, release assinado, updater e desinstalação.
+- Completar importação offline e testes de UI (Vitest/RTL/axe).
 
 ### Como validar no Windows
 

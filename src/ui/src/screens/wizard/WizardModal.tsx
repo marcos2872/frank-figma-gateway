@@ -3,11 +3,19 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentType,
   type MouseEvent,
 } from "react";
 import type { StepId } from "../../lib/contracts";
 import { stepLabel, stepStatusLabel } from "../../lib/labels";
 import { useAppStore } from "../../state/AppStore";
+import { StepFigma } from "./steps/StepFigma";
+import { StepFinish } from "./steps/StepFinish";
+import { StepModels } from "./steps/StepModels";
+import { StepProvider } from "./steps/StepProvider";
+import { StepRuntime } from "./steps/StepRuntime";
+import { StepWelcome } from "./steps/StepWelcome";
+import type { WizardStepProps } from "./shared";
 import "./wizard.css";
 
 interface WizardStep {
@@ -55,6 +63,15 @@ const wizardSteps: WizardStep[] = [
   },
 ];
 
+const stepComponents: Record<StepId, ComponentType<WizardStepProps>> = {
+  welcome: StepWelcome,
+  runtime: StepRuntime,
+  provider: StepProvider,
+  models: StepModels,
+  figma: StepFigma,
+  finish: StepFinish,
+};
+
 const focusableSelector = [
   "button:not([disabled])",
   "[href]",
@@ -73,6 +90,11 @@ export function WizardModal() {
   const [index, setIndex] = useState(0);
 
   const close = useCallback(() => setScreen("dashboard"), [setScreen]);
+  const advance = useCallback(
+    () => setIndex((current) => Math.min(wizardSteps.length - 1, current + 1)),
+    [],
+  );
+  const StepComponent = stepComponents[wizardSteps[index].id];
 
   useEffect(() => {
     if (open && !wasOpen.current) {
@@ -212,11 +234,12 @@ export function WizardModal() {
               const state = setup?.steps.find(
                 (candidate) => candidate.id === step.id,
               );
+              const active = position === index;
               return (
                 <section
                   key={step.id}
                   className="wizard-slide"
-                  aria-hidden={position !== index}
+                  aria-hidden={!active}
                 >
                   <div className="wizard-slide-head">
                     <span className="badge">{step.phase}</span>
@@ -227,15 +250,7 @@ export function WizardModal() {
                     ) : null}
                   </div>
                   <h3>{stepLabel[step.id]}</h3>
-                  <p>{step.description}</p>
-                  <div className="wizard-placeholder">
-                    <strong>Conteúdo em implementação</strong>
-                    <p>
-                      Esta etapa será ligada ao backend na fase {step.phase}. O
-                      estado já é persistido e retomado pelo{" "}
-                      <code>setup.json</code>.
-                    </p>
-                  </div>
+                  {active ? <StepComponent onNext={advance} /> : null}
                 </section>
               );
             })}
