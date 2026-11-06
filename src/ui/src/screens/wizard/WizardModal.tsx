@@ -95,6 +95,19 @@ export function WizardModal() {
     () => setIndex((current) => Math.min(wizardSteps.length - 1, current + 1)),
     [],
   );
+  const isComplete = useCallback(
+    (id: StepId) => {
+      const status = setup?.steps.find((step) => step.id === id)?.status;
+      return status === "done" || status === "skipped";
+    },
+    [setup],
+  );
+  // Só libera uma etapa quando todas as anteriores foram concluídas.
+  const isReachable = useCallback(
+    (position: number) =>
+      wizardSteps.slice(0, position).every((step) => isComplete(step.id)),
+    [isComplete],
+  );
   const StepComponent = stepComponents[wizardSteps[index].id];
 
   useEffect(() => {
@@ -102,10 +115,12 @@ export function WizardModal() {
       const position = setup
         ? wizardSteps.findIndex((step) => step.id === setup.currentStep)
         : 0;
-      setIndex(position < 0 ? 0 : position);
+      const firstOpen = wizardSteps.findIndex((step) => !isComplete(step.id));
+      const limit = firstOpen < 0 ? wizardSteps.length - 1 : firstOpen;
+      setIndex(Math.min(Math.max(position, 0), limit));
     }
     wasOpen.current = open;
-  }, [open, setup]);
+  }, [open, setup, isComplete]);
 
   useEffect(() => {
     if (!open) return;
@@ -215,6 +230,12 @@ export function WizardModal() {
                   type="button"
                   className="wizard-dot-button"
                   onClick={() => setIndex(position)}
+                  disabled={!isReachable(position)}
+                  title={
+                    isReachable(position)
+                      ? undefined
+                      : "Conclua as etapas anteriores"
+                  }
                   aria-label={`Ir para ${stepLabel[step.id]}`}
                 >
                   {position + 1}
@@ -275,7 +296,14 @@ export function WizardModal() {
             </button>
             <button
               type="button"
-              disabled={index === wizardSteps.length - 1}
+              disabled={
+                index === wizardSteps.length - 1 || !isReachable(index + 1)
+              }
+              title={
+                isReachable(index + 1)
+                  ? undefined
+                  : "Conclua esta etapa para avançar"
+              }
               onClick={() =>
                 setIndex((current) =>
                   Math.min(wizardSteps.length - 1, current + 1),

@@ -91,6 +91,11 @@
   font-size: 0.75rem;
 }
 
+.wizard-dot-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .wizard-dot-active .wizard-dot-button {
   border-color: var(--accent);
   color: var(--accent);
