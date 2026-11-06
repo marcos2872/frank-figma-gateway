@@ -203,7 +203,7 @@ Regras:
 - Todos os jobs são **required checks** na `main`.
 - Cache de Cargo e pnpm; concorrência cancela runs antigos do mesmo ref.
 - Windows é o alvo primário para o app Tauri.
-- CI não roda em `main` para burlar proteção: push direto é bloqueado.
+- Push direto na `main` é bloqueado; toda mudança entra por PR.
 
 ## 11. CD — pendente de implementação
 
