@@ -173,7 +173,7 @@ export function StepFigma({ onNext }: WizardStepProps) {
           Remover
         </button>
         <button type="button" disabled={busy} onClick={() => void install()}>
-          Instalar integração
+          {busy ? "Instalando integração…" : "Instalar integração"}
         </button>
         <button type="button" className="secondary" disabled={busy} onClick={() => void skip()}>
           Pular com aviso

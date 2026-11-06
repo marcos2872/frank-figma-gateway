@@ -124,7 +124,9 @@ async fn install(state: &AppState, restart_figma: bool) -> Result<IntegrationVie
 async fn install_steps(state: &AppState, restart_figma: bool) -> Result<IntegrationView, UiError> {
     let mut journal = load_journal(state)?;
 
+    log::info!("integração: instalando a CA em CurrentUser\\Root");
     let ca = state.ca.install().map_err(|error| error.to_ui_error())?;
+    log::info!("integração: CA instalada={}", ca.installed);
     if !ca.installed {
         return Err(UiError::new(
             ErrorCode::CaTrust,
@@ -135,11 +137,14 @@ async fn install_steps(state: &AppState, restart_figma: bool) -> Result<Integrat
     journal.ca_thumbprint = ca.thumbprint.clone();
     save_journal(state, &journal)?;
 
+    log::info!("integração: subindo o proxy");
     let proxy = ensure_proxy(state).await?;
+    log::info!("integração: proxy na porta {}", proxy.port);
     journal.mark_done(IntegrationStep::ProxyStart, Some(&now_utc()));
     journal.proxy_port = Some(proxy.port);
     save_journal(state, &journal)?;
 
+    log::info!("integração: gravando HKCU\\Environment");
     let snapshot = state
         .env
         .snapshot()
@@ -159,7 +164,9 @@ async fn install_steps(state: &AppState, restart_figma: bool) -> Result<Integrat
     journal.env_snapshot_ref = Some(env_plan_path(state).display().to_string());
     save_journal(state, &journal)?;
 
+    log::info!("integração: validando TLS/rewrite");
     let validation = validate(state).await?;
+    log::info!("integração: validação ok={}", validation.ok);
     if !validation.ok {
         journal.mark_failed(IntegrationStep::Validate, Some(&now_utc()));
         save_journal(state, &journal)?;
