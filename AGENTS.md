@@ -33,7 +33,8 @@ Pendências de implementação (ordem sugerida):
 - [ ] Postgres embutido
 - [ ] Onboarding em passos (download → provider → Figma)
 - [ ] Integração Copilot (OAuth + Postgres)
-- [ ] CI (lint, testes, build)
+- [x] CI (lint, testes, build, cobertura)
+- [x] Proteção da `main` (PR obrigatório + checks)
 - [ ] CD (instalador assinado, manifesto assinado, updater)
 - [ ] Assinatura de código e notarização
 - [ ] ADRs das decisões já tomadas
@@ -176,32 +177,33 @@ Regras:
 
 ## 9. Branches e PRs
 
-- `main` é estável; trabalho em `feat/*`, `fix/*`, `docs/*`, `chore/*`.
+- `main` é estável e **protegida**: push direto bloqueado; toda mudança entra por PR.
+- Trabalho em `feat/*`, `fix/*`, `docs/*`, `chore/*`.
 - PR pequeno, com descrição, evidência de teste e links para docs/issue.
 - Revisão obrigatória antes de merge (quando houver mais de um mantenedor).
-- Não mergear com CI vermelho.
+- Merge só com todos os checks da CI verdes, incluindo o gate de cobertura.
 - Squash ou merge commit conforme o repositório definir; manter histórico legível.
 
-## 10. CI — pendente de implementação
+## 10. CI
 
-Contrato a implementar em `.github/workflows/ci.yml`:
+Implementada em [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Roda em **todas as PRs**
+(qualquer branch de destino) e em push para `main`.
 
-| Job | Comandos (quando o scaffold existir) |
+| Job | O que roda |
 |---|---|
-| `lint-rust` | `cargo fmt --check`, `cargo clippy -- -D warnings` |
-| `test-rust` | `cargo test --all-features` |
-| `lint-web` | `pnpm lint`, `pnpm typecheck` |
-| `test-web` | `pnpm test` |
-| `build` | `pnpm tauri build` (Windows) |
-| `docs` | checagem de links relativos em `docs/` |
+| `ci-rust` | `cargo fmt --check`, `cargo clippy -p ffg-core -D warnings`, `cargo test -p ffg-core` |
+| `ci-coverage` | `cargo llvm-cov -p ffg-core --fail-under-lines 80` + artefato `lcov.info` |
+| `ci-web` | `pnpm install --frozen-lockfile`, `pnpm build` |
+| `ci-tauri` | `pnpm tauri build --no-bundle` (Windows) |
+| `ci-docs` | `python3 scripts/check_docs.py` (links, fences e JSON) |
 
-Requisitos:
+Regras:
 
-- Rodar em PR e em `main`.
-- Cache de Cargo e pnpm.
-- Windows como alvo primário; Linux/macOS quando fizer sentido.
-- Checks obrigatórios para merge.
-- Artefatos de teste e binários publicados no run.
+- **Gate de cobertura**: falha se as linhas do núcleo (`ffg-core`) ficarem abaixo de **80%**.
+- Todos os jobs são **required checks** na `main`.
+- Cache de Cargo e pnpm; concorrência cancela runs antigos do mesmo ref.
+- Windows é o alvo primário para o app Tauri.
+- CI não roda em `main` para burlar proteção: push direto é bloqueado.
 
 ## 11. CD — pendente de implementação
 
