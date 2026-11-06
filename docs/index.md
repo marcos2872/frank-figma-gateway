@@ -8,6 +8,7 @@ Ponto de entrada dos documentos do projeto.
 | [Arquitetura do gateway](gateway-architecture.md) | Proxy MITM, LiteLLM sidecar, Postgres, roteamento, segurança e testes |
 | [App desktop (Tauri)](desktop-app.md) | Janelas, tray, autostart, close-to-tray, supervisão dos sidecars e empacotamento |
 | [Instalação e onboarding](onboarding.md) | Instalador mínimo, tour de configuração, download/verificação de componentes |
+| [Guia de desenvolvimento](dev-guide.md) | Rodar o app, testes, logs, troubleshooting e fluxo de PR |
 | [Integração Figma + gateway](figma-gateway-integration.md) | Topologia, interceptação, wizard, tray, troubleshooting e plano de teste |
 | [PRD](gateway-prd.md) | Requisitos, entregáveis por milestone, métricas, riscos e questões em aberto |
 

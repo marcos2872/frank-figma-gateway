@@ -56,6 +56,7 @@ flowchart LR
 | [Arquitetura do gateway](docs/gateway-architecture.md) | Proxy MITM, LiteLLM sidecar, Postgres, roteamento, segurança e testes |
 | [App desktop (Tauri)](docs/desktop-app.md) | Janelas, tray, autostart, close-to-tray, supervisão e empacotamento |
 | [Instalação e onboarding](docs/onboarding.md) | Instalador mínimo, tour de configuração e download de componentes |
+| [Guia de desenvolvimento](docs/dev-guide.md) | Rodar o app, testes, logs, troubleshooting e fluxo de PR |
 | [Integração Figma + gateway](docs/figma-gateway-integration.md) | Topologia, interceptação, wizard, tray, troubleshooting e testes |
 | [PRD do gateway](docs/gateway-prd.md) | Requisitos, entregáveis por milestone, critérios de aceite, riscos e métricas |
 

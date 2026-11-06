@@ -1,7 +1,8 @@
 # App (scaffold)
 
 Estrutura inicial do app desktop definida em [../docs/desktop-app.md](../docs/desktop-app.md) e
-[../docs/onboarding.md](../docs/onboarding.md).
+[../docs/onboarding.md](../docs/onboarding.md). Para o passo a passo de ambiente, logs e
+troubleshooting, veja o [guia de desenvolvimento](../docs/dev-guide.md).
 
 ```text
 src/
@@ -38,6 +39,7 @@ src/
 ```bash
 cd src
 pnpm install
+pnpm env:check            # checa ferramentas e libs do sistema
 pnpm build             # typecheck + build do frontend
 pnpm tauri dev         # app Tauri (requer WebView2 no Windows)
 cargo test -p ffg-core # testes da lógica pura

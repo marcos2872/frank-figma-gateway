@@ -13,6 +13,7 @@
     "build": "tsc -p ui/tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "env:check": "node ../scripts/dev-doctor.mjs",
     "test:core": "cargo test -p ffg-core"
   },
   "dependencies": {

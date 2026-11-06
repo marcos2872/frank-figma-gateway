@@ -55,6 +55,7 @@ src/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── main.rs
+│   │   ├── logging.rs
 │   │   ├── supervisor.rs
 │   │   ├── proxy/
 │   │   ├── ca.rs
@@ -87,7 +88,8 @@ licenses/
   alterem estado.
 - **Execução** (pedido explícito): implemente só o escopo pedido, com evidência (teste/lint).
 - **Ambíguo**: pergunte antes de agir.
-- Leia o doc relevante antes de mudar comportamento.
+- Leia o doc relevante antes de mudar comportamento; para ambiente e comandos, comece pelo
+  [guia de desenvolvimento](docs/dev-guide.md).
 - Mudou uma decisão? Atualize o doc e, se for estrutural, crie um ADR em `docs/adr/`.
 - Não invente fatos sobre o Figma, o LiteLLM ou versões: verifique em `docs/` ou na fonte.
 
