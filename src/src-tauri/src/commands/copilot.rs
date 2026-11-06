@@ -97,11 +97,17 @@ pub async fn copilot_disconnect(state: State<'_, AppState>) -> Result<CopilotSta
 
 #[tauri::command]
 pub async fn copilot_begin_auth(state: State<'_, AppState>) -> Result<DeviceFlow, UiError> {
-    let flow = state
-        .copilot
-        .begin()
-        .await
-        .map_err(|error| error.to_ui_error())?;
+    let flow = match state.copilot.begin().await {
+        Ok(flow) => flow,
+        Err(error) => {
+            log::warn!("copilot: device flow falhou: {error}");
+            return Err(error.to_ui_error());
+        }
+    };
+    log::info!(
+        "copilot: device flow iniciado (expira em {}s)",
+        flow.expires_in
+    );
     let mut setup = load_setup(&state)?;
     setup.copilot.enabled = true;
     setup.copilot.auth_status = AuthStatus::WaitingForUser;
@@ -114,18 +120,22 @@ pub async fn copilot_poll_auth(
     device_code: String,
     state: State<'_, AppState>,
 ) -> Result<CopilotStatus, UiError> {
-    let outcome = state
-        .copilot
-        .poll(&device_code)
-        .await
-        .map_err(|error| error.to_ui_error())?;
+    let outcome = match state.copilot.poll(&device_code).await {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            log::warn!("copilot: poll falhou: {error}");
+            return Err(error.to_ui_error());
+        }
+    };
 
     let mut setup = load_setup(&state)?;
     match outcome {
         PollOutcome::Pending | PollOutcome::SlowDown => {
+            log::debug!("copilot: aguardando autorização");
             setup.copilot.auth_status = AuthStatus::WaitingForUser;
         }
         PollOutcome::Token(token) => {
+            log::info!("copilot: token recebido; gravando access-token");
             store_access_token(&state, &token)?;
             let login = state.copilot.login(&token).await.unwrap_or(None);
             setup.copilot.connected = true;
