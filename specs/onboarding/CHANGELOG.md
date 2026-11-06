@@ -28,6 +28,17 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [ ] Validação de compilação/execução no Windows (Tauri, registry, keyring).
 - [ ] Adapter `keyring`/Credential Manager (previsto para F5, quando as credenciais entram em uso).
 
+### Decisão de UX — modal + carrossel
+
+- [x] Formato confirmado: modal overlay sobre o dashboard, com carrossel horizontal de uma etapa por vez.
+- [x] Plano atualizado (seções 5, 5.3, 5.7, 5.8 e F10) para o novo formato.
+- [x] Shell visual `WizardModal` criado com 6 etapas, navegação, indicador de progresso e status do `setup.json`.
+- [x] Acessibilidade do shell: `role="dialog"`, `aria-modal`, foco preso, `Esc`, clique no backdrop,
+  retorno de foco e `prefers-reduced-motion`.
+- [x] Dashboard ganhou a ação “Abrir configuração” para abrir o modal.
+- [ ] Conteúdo real de cada etapa será ligado nas fases F3, F5, F8, F9 e F10.
+- [ ] Testes de UI com Vitest/RTL/axe (previstos para F10).
+
 ### Evidências locais (Linux)
 
 - `cargo fmt --all -- --check`
@@ -46,6 +57,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 - F1 — núcleo puro: manifesto assinado, planos de download/instalação, config do LiteLLM,
   catálogo de providers, env plan e journal de integração.
+- O shell do wizard (modal + carrossel) já foi adiantado; o conteúdo real de cada etapa entra junto
+  com as fases que implementam os comandos correspondentes.
 
 ### Como validar no Windows
 

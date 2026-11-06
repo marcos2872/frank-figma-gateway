@@ -1,11 +1,10 @@
 import { isTauri } from "../lib/bridge";
-import type {
-  ServiceState,
-  ServiceStatus,
-  SetupStatus,
-  StepId,
-  StepStatus,
-} from "../lib/contracts";
+import type { ServiceState, ServiceStatus } from "../lib/contracts";
+import {
+  setupStatusLabel,
+  stepLabel,
+  stepStatusLabel,
+} from "../lib/labels";
 import { useAppStore } from "../state/AppStore";
 
 const serviceStateLabel: Record<ServiceState, string> = {
@@ -15,30 +14,6 @@ const serviceStateLabel: Record<ServiceState, string> = {
   degraded: "Degradado",
   failed: "Falhou",
   stopping: "Parando",
-};
-
-const setupStatusLabel: Record<SetupStatus, string> = {
-  notStarted: "Não iniciado",
-  inProgress: "Em andamento",
-  completed: "Concluído",
-  needsAttention: "Requer atenção",
-};
-
-const stepLabel: Record<StepId, string> = {
-  welcome: "Boas-vindas",
-  runtime: "Runtime LiteLLM",
-  provider: "Provedor",
-  models: "Modelos e fallback",
-  figma: "Integração com o Figma",
-  finish: "Teste final",
-};
-
-const stepStatusLabel: Record<StepStatus, string> = {
-  pending: "Pendente",
-  inProgress: "Em andamento",
-  done: "Concluído",
-  skipped: "Pulado",
-  failed: "Falhou",
 };
 
 function StatusCard({ service }: { service: ServiceStatus }) {
@@ -61,6 +36,7 @@ export default function Dashboard() {
     setup,
     busy,
     message,
+    setScreen,
     reload,
     startServices,
     stopServices,
@@ -140,6 +116,13 @@ export default function Dashboard() {
             ))}
           </ol>
           <div className="actions">
+            <button
+              type="button"
+              disabled={busy || !isTauri}
+              onClick={() => setScreen("wizard")}
+            >
+              Abrir configuração
+            </button>
             <button
               type="button"
               className="secondary"

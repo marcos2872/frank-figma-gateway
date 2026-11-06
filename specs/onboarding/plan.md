@@ -689,6 +689,11 @@ Nenhum `UiError` deve conter chave, token, URL com userinfo, prompt ou corpo de 
 
 ## 5. Desenho do wizard de onboarding
 
+> **Formato decidido:** modal overlay sobre o dashboard, com carrossel horizontal de uma etapa por vez.
+> Fechar (`Esc`, botão ou backdrop) retorna ao dashboard sem perder o estado; downloads/OAuth longos
+> continuam em background e podem ser acompanhados pelo tray. Navegar no carrossel não altera o
+> `setup.json`; só a conclusão real de cada etapa o faz.
+
 ### 5.1 Passos
 
 | Passo | Tela | Conteúdo | Conclusão | Pode pular? |
@@ -731,9 +736,12 @@ Regras:
 
 ### 5.3 Persistência e retomada
 
-- Ao abrir: `setup_get_state`; se `status != completed`, abrir wizard no `first_pending_step`.
+- Ao abrir: `setup_get_state`; se `status != completed`, abrir o modal no `first_pending_step`.
 - Se `currentStep` tem `last_error`, abrir nele com banner e ação de retry.
-- Fechar a janela não cancela o wizard: salva estado e mantém serviços já configurados.
+- Fechar o modal não cancela o wizard: salva estado e mantém serviços já configurados; downloads/OAuth
+  continuam em background.
+- Reabrir pelo dashboard/tray restaura o carrossel no `currentStep`; a navegação entre etapas é apenas
+  visual e não grava progresso.
 - Fechar durante download: `.part` + `.meta.json` persistem; ao reabrir, oferecer “Retomar”.
 - Fechar durante instalação: staging é limpo na inicialização; ponteiro ativo anterior permanece.
 - Estado corrompido: `.bak`; se ambos falharem, quarentena e wizard do zero com aviso.
@@ -828,6 +836,9 @@ Regras:
 - Botões desabilitados com motivo visível; não usar apenas cor para estado.
 - Contraste ≥ 4.5:1; foco visível; alvos ≥ 44×44 px; `prefers-reduced-motion`.
 - Diálogos com foco preso, `Esc` fecha, retorno de foco ao elemento de origem.
+- Modal do wizard: `role="dialog"`, `aria-modal="true"`, backdrop clicável, foco preso e restaurado.
+- Carrossel: navegação por botões e teclado; não depender de swipe; `prefers-reduced-motion` desativa
+  a transição horizontal; cada etapa tem título focável e status anunciado via `aria-live`.
 - Testes com `vitest-axe`/`axe-core` e navegação por teclado.
 
 ### 5.8 Estrutura de UI
@@ -847,7 +858,8 @@ src/ui/src/
 ├─ screens/
 │  ├─ Dashboard.tsx
 │  ├─ wizard/
-│  │  ├─ WizardLayout.tsx
+│  │  ├─ WizardModal.tsx      # overlay + carrossel + foco preso
+│  │  ├─ wizard.css
 │  │  ├─ StepWelcome.tsx
 │  │  ├─ StepRuntime.tsx
 │  │  ├─ StepProvider.tsx
@@ -870,7 +882,9 @@ src/ui/src/
    └─ ...
 ```
 
-A janela principal continua única; o wizard é uma tela, não uma janela separada no MVP. A UI do LiteLLM é uma `WebviewWindow` separada com `WebviewUrl::External` (não iframe, por causa de `X-Frame-Options`).
+A janela principal continua única; o wizard é um **modal overlay com carrossel horizontal**, não uma
+janela separada no MVP. A UI do LiteLLM é uma `WebviewWindow` separada com `WebviewUrl::External` (não
+iframe, por causa de `X-Frame-Options`).
 
 ---
 
@@ -1491,12 +1505,13 @@ pub fn plan_proxy_env(
 | Caminho | Ação | Responsabilidade |
 |---|---|---|
 | `src/ui/src/App.tsx` | alterar | Shell com `screen` dashboard/wizard/providers/logs/settings |
-| `src/ui/src/state/AppStore.tsx` | criar | Estado, eventos, operações, toasts |
+| `src/ui/src/state/AppStore.tsx` | alterar | Estado, eventos, operações, toasts |
 | `src/ui/src/lib/bridge.ts` | alterar | Todos os wrappers |
 | `src/ui/src/lib/contracts.ts` | alterar | Tipos completos |
-| `src/ui/src/lib/events.ts` | criar | Listeners tipados |
-| `src/ui/src/screens/Dashboard.tsx` | criar | Cards de serviços/integração, ações |
-| `src/ui/src/screens/wizard/*` | criar | 6 componentes de passo + layout |
+| `src/ui/src/lib/events.ts` | alterar | Listeners tipados |
+| `src/ui/src/screens/Dashboard.tsx` | alterar | Cards de serviços/integração, ações |
+| `src/ui/src/screens/wizard/*` | criar | `WizardModal` + carrossel + 6 conteúdos de passo |
+| `src/ui/src/screens/wizard/wizard.css` | criar | Modal, carrossel, responsivo e reduced motion |
 | `src/ui/src/screens/providers/*` | criar | Edição pós-onboarding |
 | `src/ui/src/screens/logs/*` | criar | Tail/filtro/copiar |
 | `src/ui/src/screens/settings/*` | criar | Autostart, pastas, reset |
@@ -1517,8 +1532,9 @@ pub fn plan_proxy_env(
 
 **Critérios de aceite:**
 
-- Wizard completo em Windows, first-run de ponta a ponta.
-- Fechar/reabrir retoma no passo pendente.
+- Wizard completo em Windows, em modal overlay com carrossel horizontal, first-run de ponta a ponta.
+- Fechar/reabrir retoma no passo pendente; fechar não cancela download/OAuth em andamento.
+- `Esc`, botão de fechar e clique no backdrop fecham o modal; foco preso e restaurado ao elemento de origem.
 - Tray “Reconfigurar” abre no passo 2; “Configurar Figma” no passo 4.
 - “Já tenho os pacotes” instala offline.
 - Pular Figma mostra badge pendente no dashboard.
