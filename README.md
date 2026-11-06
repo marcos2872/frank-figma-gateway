@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="frank-figma-gateway" width="160" />
+</p>
+
 # frank-figma-gateway
 
 > Gateway local que permite ao Figma desktop usar modelos de LLM de qualquer provedor — OpenAI,
