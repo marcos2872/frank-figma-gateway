@@ -1,0 +1,27 @@
+[package]
+name = "ffg-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Runtime download, verification, extraction and atomic installation"
+
+[dependencies]
+ffg-core = { path = "../core" }
+futures-util = "0.3"
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "io-util", "process", "time", "sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+uuid = { version = "1", features = ["v4"] }
+zip = { version = "2.6", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+base64 = "0.22"
+ed25519-dalek = "=2.1.1"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"
