@@ -85,6 +85,7 @@ export function WizardModal() {
   const { screen, setScreen, setup } = useAppStore();
   const open = screen === "wizard";
   const dialogRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const wasOpen = useRef(false);
   const [index, setIndex] = useState(0);
@@ -153,6 +154,8 @@ export function WizardModal() {
   useEffect(() => {
     if (open) {
       titleRef.current?.focus();
+      // O viewport é o container de rolagem: cada etapa começa no topo.
+      viewportRef.current?.scrollTo({ top: 0 });
     }
   }, [index, open]);
 
@@ -225,7 +228,7 @@ export function WizardModal() {
           <p className="wizard-loading">Carregando estado da configuração…</p>
         ) : null}
 
-        <div className="wizard-viewport">
+        <div className="wizard-viewport" ref={viewportRef}>
           <div
             className="wizard-track"
             style={{ transform: `translateX(-${index * 100}%)` }}

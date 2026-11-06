@@ -98,7 +98,10 @@
 
 .wizard-viewport {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .wizard-track {
@@ -108,7 +111,7 @@
 
 .wizard-slide {
   flex: 0 0 100%;
-  min-height: 300px;
+  min-height: 0;
   padding: 8px 24px 24px;
 }
 
@@ -207,14 +210,6 @@
   .wizard-track {
     transition: none;
   }
-}
-
-.wizard-viewport {
-  min-height: 0;
-}
-
-.wizard-slide {
-  overflow-y: auto;
 }
 
 .wizard-step-body {
