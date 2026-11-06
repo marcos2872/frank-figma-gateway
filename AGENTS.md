@@ -34,7 +34,7 @@ Pendências de implementação (ordem sugerida):
 - [ ] Onboarding em passos (download → provider → Figma)
 - [ ] Integração Copilot (OAuth + Postgres)
 - [x] CI (lint, testes, build, cobertura)
-- [ ] Proteção da `main` (requer GitHub Pro ou repositório público)
+- [x] Proteção da `main` (PR obrigatório + checks)
 - [ ] CD (instalador assinado, manifesto assinado, updater)
 - [ ] Assinatura de código e notarização
 - [ ] ADRs das decisões já tomadas
@@ -177,8 +177,7 @@ Regras:
 
 ## 9. Branches e PRs
 
-- `main` é estável; toda mudança deve entrar por PR. O bloqueio de push direto depende de
-  proteção de branch (GitHub Pro ou repositório público) e está pendente.
+- `main` é estável e **protegida**: push direto bloqueado; toda mudança entra por PR.
 - Trabalho em `feat/*`, `fix/*`, `docs/*`, `chore/*`.
 - PR pequeno, com descrição, evidência de teste e links para docs/issue.
 - Revisão obrigatória antes de merge (quando houver mais de um mantenedor).
@@ -201,7 +200,7 @@ Implementada em [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Roda em 
 Regras:
 
 - **Gate de cobertura**: falha se as linhas do núcleo (`ffg-core`) ficarem abaixo de **80%**.
-- Todos os jobs devem ser **required checks** na `main` (proteção pendente de plano).
+- Todos os jobs são **required checks** na `main`.
 - Cache de Cargo e pnpm; concorrência cancela runs antigos do mesmo ref.
 - Windows é o alvo primário para o app Tauri.
 - CI não roda em `main` para burlar proteção: push direto é bloqueado.
