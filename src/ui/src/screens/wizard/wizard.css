@@ -355,6 +355,36 @@
   outline-offset: 1px;
 }
 
+.wizard-field select {
+  width: 100%;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #0f1319;
+  color: var(--ink);
+  font: inherit;
+}
+
+.wizard-field select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wizard-models summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.wizard-model-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .wizard-check-line {
   display: flex;
   align-items: center;

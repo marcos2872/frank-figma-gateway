@@ -189,6 +189,10 @@ pub struct ModelRoute {
 pub struct ModelSettings {
     #[serde(default)]
     pub routes: Vec<ModelRoute>,
+    /// Mapa id do seletor da Figma → `public_name` de uma rota. O proxy usa
+    /// para respeitar a escolha do modelo no Make.
+    #[serde(default)]
+    pub aliases: BTreeMap<String, String>,
     #[serde(default)]
     pub fallbacks: BTreeMap<String, Vec<String>>,
     #[serde(default)]

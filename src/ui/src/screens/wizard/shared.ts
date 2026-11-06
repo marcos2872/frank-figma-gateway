@@ -6,6 +6,36 @@ export interface WizardStepProps {
   onNext: () => void;
 }
 
+/**
+ * Ids que o seletor do Make envia (validados no Figma 126.11.7).
+ * Espelha `FIGMA_MODEL_IDS` em `src/crates/core/src/models.rs`.
+ */
+export const FIGMA_MODEL_IDS = [
+  "default",
+  "anthropic-claude-4.6-opus",
+  "anthropic-claude-4.8-opus",
+  "anthropic-claude-5-opus",
+  "anthropic-claude-5.5-opus",
+  "anthropic-claude-4.6-sonnet",
+  "anthropic-claude-5-sonnet",
+  "anthropic-claude-5.5-sonnet",
+  "figaro-sonnet-4.6",
+  "figaro-gpt-5.6-sol",
+  "figaro-gpt-5.6-terra",
+  "figaro-gpt-6-astra",
+  "figaro-gpt-6-luna",
+  "figaro-gpt-6-sol",
+  "google-gemini-3-pro",
+  "google-gemini-3.1-pro",
+  "google-gemini-3-flash",
+  "google-gemini-3.8-flash",
+  "aqua",
+  "velvet",
+  "goldenrod",
+  "emerald",
+  "tangelo",
+] as const;
+
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];

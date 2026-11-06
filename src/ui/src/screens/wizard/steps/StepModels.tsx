@@ -11,6 +11,7 @@ import type { ModelRoute, ModelSettings } from "../../../lib/contracts";
 import { useAppStore } from "../../../state/AppStore";
 import {
   errorMessage,
+  FIGMA_MODEL_IDS,
   providerEnvVar,
   providerModelPrefix,
   waitForLiteLlm,
@@ -34,6 +35,12 @@ export function StepModels({ onNext }: WizardStepProps) {
   const [fallback, setFallback] = useState(
     Boolean(setup?.models.fallbacks[OPUS]?.length),
   );
+  const [aliases, setAliases] = useState<Record<string, string>>(() => {
+    const saved = setup?.models.aliases ?? {};
+    return Object.fromEntries(
+      FIGMA_MODEL_IDS.map((id) => [id, saved[id] ?? OPUS]),
+    );
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,8 +77,12 @@ export function StepModels({ onNext }: WizardStepProps) {
         apiVersion: provider.apiVersion ?? null,
         extra: {},
       });
+      const explicitAliases = Object.fromEntries(
+        Object.entries(aliases).filter(([, target]) => target !== OPUS),
+      );
       const settings: ModelSettings = {
         routes: [route(OPUS, opus.trim()), route(HAIKU, haiku.trim())],
+        aliases: explicitAliases,
         fallbacks: fallback ? { [OPUS]: [HAIKU] } : {},
         appliedAt: null,
         configRevision: null,
@@ -138,6 +149,32 @@ export function StepModels({ onNext }: WizardStepProps) {
           />
           Usar o modelo rápido como fallback do principal
         </label>
+        <details className="wizard-models">
+          <summary>Modelos do seletor do Make</summary>
+          <p className="wizard-meta">
+            Escolha a rota de cada modelo do Make. Os que não estão aqui usam a
+            principal.
+          </p>
+          <div className="wizard-model-grid">
+            {FIGMA_MODEL_IDS.map((id) => (
+              <label className="wizard-field" key={id}>
+                <span>{id}</span>
+                <select
+                  value={aliases[id] ?? OPUS}
+                  onChange={(event) =>
+                    setAliases((current) => ({
+                      ...current,
+                      [id]: event.target.value,
+                    }))
+                  }
+                >
+                  <option value={OPUS}>Principal</option>
+                  <option value={HAIKU}>Rápido</option>
+                </select>
+              </label>
+            ))}
+          </div>
+        </details>
       </div>
       {error ? <p className="wizard-error">{error}</p> : null}
       <div className="wizard-step-actions">

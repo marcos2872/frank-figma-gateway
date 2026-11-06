@@ -122,6 +122,7 @@ mod tests {
                 api_version: None,
                 extra: BTreeMap::new(),
             }],
+            aliases: BTreeMap::new(),
             fallbacks: BTreeMap::new(),
             applied_at: None,
             config_revision: None,

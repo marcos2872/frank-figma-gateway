@@ -133,6 +133,7 @@ export interface ModelRoute {
 
 export interface ModelSettings {
   routes: ModelRoute[];
+  aliases: Record<string, string>;
   fallbacks: Record<string, string[]>;
   appliedAt?: string | null;
   configRevision?: string | null;

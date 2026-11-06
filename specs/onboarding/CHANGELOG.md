@@ -75,8 +75,13 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] Recursos embutidos: `resources/runtime-policy.json` e `resources/keys/manifest-keys.json`
   (placeholder `retired`).
 - [x] `docs/release.md` e entrada no índice da documentação.
+- [x] Chave pública real `2026-01` embutida em `resources/keys/manifest-keys.json`
+  (placeholder `retired` removido).
+- [x] `scripts/generate-manifest-key.mjs` gera o par fora do repositório; `scripts/check-manifest-key.mjs`
+  roda no job de assinatura e falha se a chave do app divergir dos secrets.
+- [x] Release notes geradas pelo workflow (conteúdo, verificação e requisitos) e canal estável
+  `runtime-latest` com upload do manifesto por último.
 - [ ] Validar o build real do LiteLLM/Postgres e o workflow no Windows.
-- [ ] Substituir o placeholder pela chave pública real antes do release público.
 
 ### F3 — Downloader e instalação atômica
 
@@ -103,6 +108,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] Logs por serviço em ring buffer com redaction de bearer tokens e limite de linha.
 - [x] Alocação de portas loopback e persistência em `setup.json`.
 - [x] Job Object do Windows com `KILL_ON_JOB_CLOSE` (compilação cruzada validada; runtime pendente).
+- [x] Helper de teste `spec` restrito a `unix` (no Windows virava dead code e quebrava o
+  `clippy -D warnings`).
 - [x] `AppState` com supervisor e tarefa de monitor; comandos `service_status`, `start_services`,
   `stop_services`, `restart_services` e `service_logs`.
 - [x] Specs montados a partir do runtime ativo; LiteLLM recebe `LITELLM_MASTER_KEY`/`LITELLM_SALT_KEY`.
@@ -143,6 +150,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] HTTP/1.1 e HTTP/2 via `hyper-util` auto; streaming SSE sem buffer.
 - [x] Rewrite `/ai-gateway/...` → LiteLLM, troca de `Authorization` pela master key e forward
   não-IA para `https://api.figma.com`.
+- [x] Mapeamento de modelo no corpo JSON: `model_aliases` (id recebido → rota) e `default_model`
+  para ids desconhecidos, aplicado só em path de IA.
 - [x] Estatísticas (conexões, requisições de IA, primeira requisição) e erros.
 - [x] `self_test`: cliente com CA local atravessa o proxy e valida TLS + rewrite + LiteLLM.
 - [x] Comandos `proxy_status`, `proxy_start`, `proxy_stop` e `proxy_self_test`; `service_status`
@@ -187,6 +196,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] Passo 1 com download/instalação do LiteLLM, progresso via `download://progress` e cancelamento.
 - [x] Passo 2 com catálogo de provedores, formulário dinâmico, salvar credencial e preparar Postgres do Copilot.
 - [x] Passo 3 com aliases dos ids que o cliente envia (codenames da Figma + `claude-*`), fallback, aplicação do config, start dos serviços e teste real no LiteLLM.
+- [x] Passo 3 lista os ids do seletor do Make (`FIGMA_MODEL_IDS`) com uma rota por id; o mapa vai em
+  `models.aliases` e o proxy o aplica.
 - [x] Passo 4 com instalar/validar/remover/reiniciar Figma e checks da integração.
 - [x] Passo 5 com status dos serviços, saúde do LiteLLM, integração Figma, autostart e conclusão.
 - [x] First-run abre o wizard automaticamente; tray “Reconfigurar”/“Configurar Figma” abre o modal.
@@ -212,9 +223,31 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
   o nome exibido é um `switch` fixo no bundle.
 - [x] Consequência: o proxy substitui o modelo no corpo de `/v1/messages`, mas **não** injeta nomes
   na lista do seletor.
-- [ ] Mapa configurável id → rota no proxy e validação de nome público sem exigir prefixo
-  `claude-`/`anth-`.
+- [x] Mapa configurável id → rota no proxy (`model_aliases` + `default_model`) e validação de nome
+  público sem exigir prefixo `claude-`/`anth-`.
+- [x] UI do passo 3 para escolher a rota de cada id do Make (`models.aliases`).
 - [ ] Confirmar em execução qual id chega em cada fluxo (Make, agente, tarefas auxiliares).
+
+### Release de runtime — iteração
+
+- [x] Release do runtime separado do app: `release-runtime.yml` em tags `runtime-v*` ou
+  `workflow_dispatch`, release versionado + canal `runtime-latest` (o app lê
+  `releases/download/runtime-latest/manifest.json`).
+- [x] `DEFAULT_MANIFEST_URL` aponta para o canal estável; releases do app (`v*`) não o afetam.
+- [x] Chave `2026-01` gerada e embutida; assinatura e verificação testadas localmente com
+  `manifest-signer`/`manifest-verify`.
+- [x] Release notes com conteúdo, verificação por SHA-256 e requisitos.
+- [x] `publish` ganhou `actions/checkout` (o `gh` precisa do repositório para resolver a tag).
+
+Runs de validação — nenhum release publicado ainda:
+
+| Tag | Resultado |
+|---|---|
+| `runtime-v1.108.1-r1` | falhou no build: `ImportError: cannot import name 'run_server' from 'litellm.proxy.proxy_server'` |
+| `runtime-v1.108.1-r2` | falhou no build: `SyntaxError` no `entrypoint.py` gerado pelo here-string do PowerShell |
+| `runtime-v1.108.1-r3` | falhou; `r4` estava em andamento no fechamento deste registro |
+
+- [ ] Publicar o primeiro release e confirmar o download real no app.
 
 ### Validação no Windows — pendências
 
@@ -239,7 +272,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [ ] Build real do LiteLLM com PyInstaller, hidden imports, `litellm --version` e start do proxy.
 - [ ] Build real do Postgres EDB, layout `bin/postgres.exe`, `postgres --version` e licença.
 - [ ] Workflow `release-runtime.yml` em runner Windows; publicação de ZIPs + `manifest.json` + `.sig`.
-- [ ] Substituir a chave pública placeholder `retired` pela chave real e garantir `MANIFEST_SIGNING_KEY` no secret.
+- [x] Chave pública real `2026-01` embutida no app (placeholder `retired` removido).
+- [ ] Garantir `MANIFEST_SIGNING_KEY`/`MANIFEST_KEY_ID`/`MANIFEST_PUBLIC_KEY` no GitHub antes da tag.
 - [ ] Verificar SHA-256/assinatura do manifesto e dos ZIPs no app.
 - [ ] `installedSize` real dos artefatos (hoje pode cair no tamanho do ZIP).
 
@@ -336,8 +370,10 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets -- -D warnings` (app Tauri incluído).
-- `cargo test --workspace` — **184 testes, 0 falhas** (core 115, runtime 34, supervisor 10,
-  litellm 8, src-tauri 8, proxy 5, postgres 4).
+- `cargo test --workspace` — **188 testes, 0 falhas** (core 116, runtime 34, supervisor 10,
+  litellm 8, src-tauri 8, proxy 8, postgres 4).
+- `cargo test -p ffg-proxy` — inclui o MITM com `figaro-gpt-6-sol` chegando ao upstream como
+  `claude-opus-4-8`.
 - `pnpm build`
 - `pnpm tauri build --no-bundle` — binário em `src/target/release/frank-figma-gateway.exe`.
 - `scripts/check_docs.py` (equivalente em Node; não há Python na máquina) — 13 markdown, 4 json.
@@ -348,10 +384,13 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 ### Próximo passo
 
+- Configurar os secrets do release e publicar o runtime (`runtime-v1.108.1-r*`), depois confirmar o
+  download no app.
 - Spike obrigatório do Copilot: confirmar endpoints de credential/device flow no LiteLLM `v1.108.1`.
 - Executar a checklist completa de validação no Windows acima.
 - F11 — E2E, caos, release assinado, updater e desinstalação.
 - Completar importação offline e testes de UI (Vitest/RTL/axe).
+- PR #4 (`feat/onboarding` → `main`) aberta com todo o trabalho desta branch.
 
 ### Como validar no Windows
 

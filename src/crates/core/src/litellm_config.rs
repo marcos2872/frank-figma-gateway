@@ -293,6 +293,7 @@ mod tests {
                 },
                 route("claude-haiku-4-5", "openrouter/anthropic/claude-haiku-4.5"),
             ],
+            aliases: BTreeMap::new(),
             fallbacks: BTreeMap::from([(
                 "claude-opus-4-8".to_owned(),
                 vec!["claude-haiku-4-5".to_owned()],
