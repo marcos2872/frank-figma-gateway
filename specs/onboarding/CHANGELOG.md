@@ -148,20 +148,51 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [ ] Validar com o Figma real, HTTP/2 em produção, Upgrade/WebSocket e passthrough não-IA.
 - [ ] Integração de CA/env com o Figma (F8) e auto-start pelo onboarding (F10).
 
+### F8 — Integração Figma
+
+- [x] `EnvStore` de plataforma: `HKCU\Environment` no Windows + broadcast `WM_SETTINGCHANGE`;
+  fallback em memória.
+- [x] Instalação transacional: CA → proxy → env → validação, com journal em
+  `state/integration.json`.
+- [x] Snapshot/restore do env protegido por DPAPI (fallback plain nos testes).
+- [x] Detecção do Figma (`Figma.exe`, versão `app-*`, processo) e restart controlado.
+- [x] Comandos `figma_environment`, `figma_install`, `figma_validate`, `figma_remove`,
+  `integration_status`, `figma_restart` e wrappers `install/remove_figma_integration`.
+- [x] Validação: CA instalada, proxy rodando, HTTPS_PROXY/HTTP_PROXY/NO_PROXY, self-test de
+  TLS/rewrite e presença do Figma.
+- [x] Tray “Reconfigurar”/“Configurar Figma” emite `wizard://open`; a UI abre o modal.
+- [ ] Validar instalação/remoção, HKCU e restart com o Figma real no Windows.
+- [ ] Tratar rollback/erro parcial com o app em execução e trabalho não salvo.
+
+### F9 — Postgres embutido e Copilot
+
+- [x] Novo crate `ffg-postgres`: layout, `initdb`, `psql`/CREATE DATABASE, servidor loopback e
+  `DATABASE_URL` com senha URL-encoded.
+- [x] Comandos `copilot_status`, `copilot_prepare`, `copilot_disable` e `copilot_disconnect`.
+- [x] `copilot_prepare` inicializa o cluster, sobe o Postgres, cria o banco `litellm`, persiste a
+  senha no cofre e marca `postgresReady`.
+- [x] `DATABASE_URL` injetado no ambiente do LiteLLM quando o perfil Copilot está ativo.
+- [x] Senha do Postgres protegida pelo secret store; dados em `postgres/data`.
+- [ ] OAuth/device flow, criação de credential `github-copilot`, alias e teste dependem do spike
+  obrigatório da API do LiteLLM `v1.108.1`; os comandos retornam erro acionável por enquanto.
+- [ ] Backup/restore, upgrade de major e validação do cluster no Windows.
+
 ### Evidências locais (Linux)
 
 - `cargo fmt --all -- --check`
-- `cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy -p manifest-signer -p manifest-verify --all-targets -- -D warnings`
+- `cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy -p ffg-postgres -p manifest-signer -p manifest-verify --all-targets -- -D warnings`
 - `cargo test -p ffg-core` — 115 testes passando.
 - `cargo test -p ffg-runtime` — 24 testes passando.
 - `cargo test -p ffg-supervisor` — 13 testes passando.
 - `cargo test -p ffg-litellm` — 8 testes passando.
 - `cargo test -p ffg-proxy` — 5 testes passando (CA, túnel e MITM com rewrite).
+- `cargo test -p ffg-postgres` — 4 testes passando.
 - `cargo llvm-cov -p ffg-core --fail-under-lines 80` — 92,23% de linhas.
 - `cargo llvm-cov -p ffg-runtime --fail-under-lines 70` — 86,47% de linhas.
 - `cargo llvm-cov -p ffg-supervisor --fail-under-lines 70` — 75,44% de linhas.
 - `cargo llvm-cov -p ffg-litellm --fail-under-lines 70` — 87,39% de linhas.
 - `cargo llvm-cov -p ffg-proxy --fail-under-lines 70` — 78,73% de linhas.
+- `cargo llvm-cov -p ffg-postgres --fail-under-lines 70` — 100,00% de linhas.
 - `node scripts/manifest.mjs ...` — manifesto gerado e JSON validado.
 - `manifest-signer` + `manifest-verify` — assinatura e verificação testadas localmente.
 - `pnpm build`
@@ -174,9 +205,9 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 ### Próximo passo
 
-- F8 — integração Figma: env em HKCU, detecção, instalação/remoção transacional e validação.
-- F9 — Postgres embutido + Copilot (pode correr em paralelo).
-- F10 — wizard completo, incluindo ligar CA/proxy/providers ao modal.
+- F10 — wizard completo: ligar setup, runtime, providers, CA/proxy, Figma e finish ao modal.
+- Spike obrigatório do Copilot: confirmar endpoints de credential/device flow no LiteLLM `v1.108.1`.
+- Validação Windows de HKCU, cert store, DPAPI, keyring, Job Object, proxy e Postgres real.
 - O shell do wizard (modal + carrossel) já foi adiantado; o conteúdo real de cada etapa entra junto
   com as fases que implementam os comandos correspondentes.
 
@@ -187,13 +218,14 @@ cd src
 pnpm install --frozen-lockfile
 pnpm build
 cargo fmt --all -- --check
-cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy --all-targets -- -D warnings
-cargo test -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy
+cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy -p ffg-postgres --all-targets -- -D warnings
+cargo test -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy -p ffg-postgres
 cargo llvm-cov -p ffg-core --fail-under-lines 80
 cargo llvm-cov -p ffg-runtime --fail-under-lines 70
 cargo llvm-cov -p ffg-supervisor --fail-under-lines 70
 cargo llvm-cov -p ffg-litellm --fail-under-lines 70
 cargo llvm-cov -p ffg-proxy --fail-under-lines 70
+cargo llvm-cov -p ffg-postgres --fail-under-lines 70
 cargo clippy -p frank-figma-gateway --all-targets -- -D warnings
 pnpm tauri build --no-bundle
 ```

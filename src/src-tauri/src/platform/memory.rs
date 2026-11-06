@@ -1,6 +1,7 @@
 //! In-memory fallback used by tests and non-Windows builds.
 
-use super::{CertStore, FileProtector, PlatformError};
+use super::{CertStore, EnvStore, FileProtector, PlatformError};
+use ffg_core::env_plan::{EnvMutation, EnvSnapshot};
 use std::collections::HashSet;
 use std::sync::Mutex;
 
@@ -46,5 +47,40 @@ impl FileProtector for PlainProtector {
 
     fn unprotect(&self, bytes: &[u8]) -> Result<Vec<u8>, PlatformError> {
         Ok(bytes.to_vec())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MemoryEnvStore {
+    snapshot: Mutex<EnvSnapshot>,
+}
+
+impl EnvStore for MemoryEnvStore {
+    fn snapshot(&self) -> Result<EnvSnapshot, PlatformError> {
+        self.snapshot
+            .lock()
+            .map_err(|_| PlatformError("env store lock poisoned".to_owned()))
+            .map(|value| value.clone())
+    }
+
+    fn apply(&self, mutations: &[EnvMutation]) -> Result<(), PlatformError> {
+        let mut snapshot = self
+            .snapshot
+            .lock()
+            .map_err(|_| PlatformError("env store lock poisoned".to_owned()))?;
+        for mutation in mutations {
+            let (name, value) = match mutation {
+                EnvMutation::Set { name, value } => (name.as_str(), Some(value.clone())),
+                EnvMutation::Remove { name } => (name.as_str(), None),
+            };
+            match name {
+                "HTTPS_PROXY" => snapshot.https_proxy = value,
+                "HTTP_PROXY" => snapshot.http_proxy = value,
+                "NO_PROXY" => snapshot.no_proxy = value,
+                "ALL_PROXY" => snapshot.all_proxy = value,
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }

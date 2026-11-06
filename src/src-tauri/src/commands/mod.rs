@@ -1,5 +1,7 @@
 pub mod app;
 pub mod ca;
+pub mod copilot;
+pub mod integration;
 pub mod providers;
 pub mod proxy;
 pub mod runtime;

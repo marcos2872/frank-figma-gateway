@@ -19,6 +19,7 @@ ffg-runtime = { path = "../crates/runtime" }
 ffg-supervisor = { path = "../crates/supervisor" }
 ffg-litellm = { path = "../crates/litellm" }
 ffg-proxy = { path = "../crates/proxy" }
+ffg-postgres = { path = "../crates/postgres" }
 hex = "0.4"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
@@ -31,11 +32,12 @@ tauri-plugin-single-instance = "2"
 thiserror = "2"
 time = { version = "0.3", features = ["formatting"] }
 uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["process", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
 tempfile = "3"

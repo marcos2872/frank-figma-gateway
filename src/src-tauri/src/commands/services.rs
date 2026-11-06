@@ -1,4 +1,4 @@
-use crate::secrets::{ensure_secret, MASTER_KEY, SALT_KEY};
+use crate::secrets::{ensure_secret, MASTER_KEY, POSTGRES_PASSWORD, SALT_KEY};
 use crate::state::AppState;
 use ffg_core::error::UiError;
 use ffg_core::secrets::SecretError;
@@ -6,17 +6,9 @@ use ffg_supervisor::{
     allocate_port, HealthCheck, HealthState, LogLine, ServiceName, ServiceSpec, ServiceState,
     ServiceStatus,
 };
-use serde::Serialize;
 use std::collections::BTreeMap;
 use std::time::Duration;
 use tauri::State;
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetupResult {
-    pub ok: bool,
-    pub message: String,
-}
 
 #[tauri::command]
 pub async fn service_status(state: State<'_, AppState>) -> Result<Vec<ServiceStatus>, UiError> {
@@ -91,22 +83,6 @@ pub async fn service_logs(
         .map_err(|error| error.to_ui_error())
 }
 
-#[tauri::command]
-pub fn install_figma_integration() -> SetupResult {
-    SetupResult {
-        ok: false,
-        message: "TODO: instalar a CA local e configurar o proxy HTTPS.".to_owned(),
-    }
-}
-
-#[tauri::command]
-pub fn remove_figma_integration() -> SetupResult {
-    SetupResult {
-        ok: false,
-        message: "TODO: remover a CA local e restaurar as variáveis de ambiente.".to_owned(),
-    }
-}
-
 async fn register_services(state: &AppState) -> Result<(), UiError> {
     let active = state
         .runtime
@@ -148,7 +124,6 @@ async fn register_services(state: &AppState) -> Result<(), UiError> {
             .setup
             .lock()
             .map_err(|_| UiError::internal("estado do app indisponível"))?;
-        let mut setup = setup;
         store.save(&mut setup).map_err(UiError::from)?;
     }
 
@@ -162,6 +137,20 @@ async fn register_services(state: &AppState) -> Result<(), UiError> {
             let mut env = BTreeMap::new();
             env.insert("LITELLM_MASTER_KEY".to_owned(), master.expose().to_owned());
             env.insert("LITELLM_SALT_KEY".to_owned(), salt.expose().to_owned());
+            if setup.copilot.enabled && setup.copilot.postgres_ready {
+                if let Some(postgres_port) = setup.services.postgres {
+                    let password = ensure_secret(state.secrets.as_ref(), POSTGRES_PASSWORD)
+                        .map_err(secret_error)?;
+                    env.insert(
+                        "DATABASE_URL".to_owned(),
+                        ffg_postgres::database_url(
+                            postgres_port,
+                            password.expose(),
+                            &setup.copilot.database_name,
+                        ),
+                    );
+                }
+            }
             state
                 .supervisor
                 .register(ServiceSpec {

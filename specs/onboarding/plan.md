@@ -1441,6 +1441,9 @@ HTTP/2/Upgrade pendentes no Windows.
 
 ### F8 — Integração Figma: env HKCU, detecção, instalação/remoção e validação
 
+**Status:** implementado com journal, env HKCU, detecção/restart e comandos; validação real com o
+Figma no Windows pendente.
+
 **Objetivo:** instalar a integração com um clique, validar e reverter sem admin.
 
 **Depende de:** F4 (supervisor), F6 (CA), F7 (proxy).
@@ -1487,6 +1490,9 @@ HTTP/2/Upgrade pendentes no Windows.
 ---
 
 ### F9 — Postgres embutido + GitHub Copilot (OAuth, credential, alias e teste)
+
+**Status:** Postgres embutido (initdb/start/database/DATABASE_URL) implementado; OAuth/credential do
+Copilot bloqueado no spike da API do LiteLLM `v1.108.1`.
 
 **Objetivo:** fechar o sub-fluxo Copilot completo.
 

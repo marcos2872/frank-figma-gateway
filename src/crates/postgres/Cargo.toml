@@ -1,0 +1,13 @@
+[package]
+name = "ffg-postgres"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command planning for the embedded Postgres profile"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,6 +1,7 @@
 mod ca;
 mod commands;
 mod events;
+mod figma;
 mod logging;
 mod paths;
 mod platform;
@@ -33,8 +34,20 @@ pub fn run() {
             commands::services::stop_services,
             commands::services::restart_services,
             commands::services::service_logs,
-            commands::services::install_figma_integration,
-            commands::services::remove_figma_integration,
+            commands::integration::install_figma_integration,
+            commands::integration::remove_figma_integration,
+            commands::integration::integration_status,
+            commands::integration::figma_environment,
+            commands::integration::figma_install,
+            commands::integration::figma_remove,
+            commands::integration::figma_validate,
+            commands::integration::figma_restart,
+            commands::copilot::copilot_status,
+            commands::copilot::copilot_prepare,
+            commands::copilot::copilot_disable,
+            commands::copilot::copilot_disconnect,
+            commands::copilot::copilot_begin_auth,
+            commands::copilot::copilot_poll_auth,
             commands::setup::setup_get_state,
             commands::setup::setup_begin_step,
             commands::setup::setup_complete_step,

@@ -33,6 +33,10 @@ pub async fn proxy_status(state: State<'_, AppState>) -> Result<ProxyStatus, UiE
 
 #[tauri::command]
 pub async fn proxy_start(state: State<'_, AppState>) -> Result<ProxyStatus, UiError> {
+    ensure_proxy(&state).await
+}
+
+pub async fn ensure_proxy(state: &AppState) -> Result<ProxyStatus, UiError> {
     if let Some(handle) = state
         .proxy
         .lock()
@@ -42,14 +46,14 @@ pub async fn proxy_start(state: State<'_, AppState>) -> Result<ProxyStatus, UiEr
         return Ok(handle.status());
     }
 
-    let mut setup = load_setup(&state)?;
+    let mut setup = load_setup(state)?;
     let proxy_port = match setup.services.proxy {
         Some(port) => port,
         None => {
             let port = allocate_port()
                 .map_err(|error| UiError::internal(format!("porta do proxy: {error}")))?;
             setup.services.proxy = Some(port);
-            save_setup(&state, &mut setup)?;
+            save_setup(state, &mut setup)?;
             port
         }
     };
@@ -92,18 +96,22 @@ pub async fn proxy_start(state: State<'_, AppState>) -> Result<ProxyStatus, UiEr
 
 #[tauri::command]
 pub async fn proxy_stop(state: State<'_, AppState>) -> Result<ProxyStatus, UiError> {
+    match stop_proxy(&state)? {
+        Some(status) => Ok(status),
+        None => proxy_status(state).await,
+    }
+}
+
+pub fn stop_proxy(state: &AppState) -> Result<Option<ProxyStatus>, UiError> {
     let handle = state
         .proxy
         .lock()
         .map_err(|_| UiError::internal("proxy lock envenenado"))?
         .take();
-    match handle {
-        Some(handle) => {
-            handle.stop();
-            Ok(handle.status())
-        }
-        None => proxy_status(state).await,
-    }
+    Ok(handle.map(|handle| {
+        handle.stop();
+        handle.status()
+    }))
 }
 
 #[tauri::command]

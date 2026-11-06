@@ -1253,6 +1253,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ffg-postgres"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "ffg-proxy"
 version = "0.1.0"
 dependencies = [
@@ -1421,6 +1430,7 @@ version = "0.1.0"
 dependencies = [
  "ffg-core",
  "ffg-litellm",
+ "ffg-postgres",
  "ffg-proxy",
  "ffg-runtime",
  "ffg-supervisor",
@@ -1438,6 +1448,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "time",
+ "tokio",
  "tokio-util",
  "uuid",
  "windows-sys 0.59.0",

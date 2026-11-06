@@ -22,7 +22,7 @@ import {
   startServices,
   stopServices,
 } from "../lib/bridge";
-import { onServiceStatus, onSetupState } from "../lib/events";
+import { onServiceStatus, onSetupState, onWizardOpen } from "../lib/events";
 import type {
   AppInfo,
   ResetScope,
@@ -112,6 +112,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     let unlistenSetup: UnlistenFn | undefined;
     let unlistenServices: UnlistenFn | undefined;
+    let unlistenWizard: UnlistenFn | undefined;
 
     async function load() {
       try {
@@ -145,10 +146,18 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       else unlistenServices = unlisten;
     });
 
+    void onWizardOpen(() => {
+      if (!cancelled) setScreen("wizard");
+    }).then((unlisten) => {
+      if (cancelled) unlisten();
+      else unlistenWizard = unlisten;
+    });
+
     return () => {
       cancelled = true;
       unlistenSetup?.();
       unlistenServices?.();
+      unlistenWizard?.();
     };
   }, []);
 

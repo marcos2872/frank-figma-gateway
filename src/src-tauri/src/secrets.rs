@@ -58,6 +58,7 @@ mod keyring_store {
 
 pub const MASTER_KEY: &str = "ffg/litellm/master-key";
 pub const SALT_KEY: &str = "ffg/litellm/salt-key";
+pub const POSTGRES_PASSWORD: &str = "ffg/postgres/password";
 
 pub fn ensure_secret(
     store: &dyn SecretStore,

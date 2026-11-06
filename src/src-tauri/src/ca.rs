@@ -41,6 +41,10 @@ impl CaManager {
         }
     }
 
+    pub fn protector(&self) -> Arc<dyn FileProtector> {
+        Arc::clone(&self.protector)
+    }
+
     pub fn cert_path(&self) -> PathBuf {
         self.paths.ca_dir().join("root.pem")
     }
