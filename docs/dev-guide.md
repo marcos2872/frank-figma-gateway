@@ -196,9 +196,10 @@ sudo apt install libcairo2-dev libpango1.0-dev libgdk-pixbuf-2.0-dev libatk1.0-d
 sudo pacman -S --needed cairo pango gdk-pixbuf2 atk gtk3
 ```
 
-### `webkit2gtk-4.1` ou `rsvg2` não encontrado
+### `webkit2gtk-4.1`, `javascriptcoregtk-4.1`, `libsoup-3.0` ou `rsvg2` não encontrado
 
-Instale as bibliotecas do Tauri para a sua distro:
+Esses três primeiros vêm do mesmo pacote de desenvolvimento do WebKitGTK. Instale as bibliotecas do
+Tauri para a sua distro:
 
 ```bash
 # Fedora
@@ -206,7 +207,13 @@ sudo dnf install webkit2gtk4.1-devel librsvg2-devel
 
 # Ubuntu/Debian
 sudo apt install libwebkit2gtk-4.1-dev librsvg2-dev
+
+# Arch
+sudo pacman -S --needed webkit2gtk-4.1 librsvg
 ```
+
+Se o erro citar `javascriptcoregtk-4.1` ou `libsoup-3.0`, o pacote acima resolve os dois; confirme com
+`pkg-config --exists javascriptcoregtk-4.1 libsoup-3.0 webkit2gtk-4.1 && echo ok`.
 
 ### `ERR_PNPM_IGNORED_BUILDS` / `esbuild`
 

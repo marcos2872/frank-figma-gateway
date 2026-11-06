@@ -48,6 +48,8 @@ if (isLinux) {
   checkPkgConfig("atk");
   checkPkgConfig("gdk-3.0");
   checkPkgConfig("gtk+-3.0");
+  checkPkgConfig("javascriptcoregtk-4.1");
+  checkPkgConfig("libsoup-3.0");
   checkPkgConfig("webkit2gtk-4.1");
   checkPkgConfig("librsvg-2.0");
   checkPkgConfig("openssl");
