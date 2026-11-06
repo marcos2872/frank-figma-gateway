@@ -1,0 +1,22 @@
+[package]
+name = "ffg-supervisor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Process supervision, health checks and restart policy for sidecars"
+
+[dependencies]
+ffg-core = { path = "../core" }
+log = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+tokio = { version = "1", features = ["process", "sync", "time", "io-util", "net", "macros"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

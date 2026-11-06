@@ -1,17 +1,24 @@
 //! Shared application state managed by Tauri.
 
 use crate::paths::RuntimePaths;
+use crate::secrets::PlatformSecretStore;
 use crate::setup_store::SetupStore;
 use ffg_core::manifest::{RuntimePolicy, TrustedKey};
+use ffg_core::secrets::SecretStore;
+use ffg_litellm::ConfigStore;
 use ffg_runtime::RuntimeManager;
+use ffg_supervisor::Supervisor;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 pub struct AppState {
     pub paths: RuntimePaths,
     pub setup: Mutex<SetupStore>,
     pub runtime: RuntimeManager,
+    pub supervisor: Arc<Supervisor>,
+    pub secrets: Arc<dyn SecretStore>,
+    pub litellm: ConfigStore,
     pub operations: Mutex<HashMap<String, CancellationToken>>,
 }
 
@@ -30,8 +37,11 @@ impl AppState {
 
         Ok(Self {
             setup: Mutex::new(SetupStore::new(paths.clone())),
-            paths,
+            paths: paths.clone(),
             runtime,
+            supervisor: Arc::new(Supervisor::default()),
+            secrets: Arc::new(PlatformSecretStore::default()),
+            litellm: ConfigStore::new(paths.litellm_config_dir())?,
             operations: Mutex::new(HashMap::new()),
         })
     }

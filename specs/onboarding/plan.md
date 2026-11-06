@@ -1239,9 +1239,15 @@ validação no Windows.
 
 ### F4 — Supervisor de sidecars, Job Object, health, portas e logs
 
+**Status:** implementado no crate `ffg-supervisor` e ligado aos comandos do app; Job Object/processos
+reais pendentes de validação no Windows.
+
 **Objetivo:** ciclo de vida confiável de Postgres/LiteLLM/proxy.
 
 **Depende de:** F3 (runtime instalado; pode usar fake até F3 terminar).
+
+> Implementação: a supervisão foi extraída para `crates/supervisor` (`ffg-supervisor`) para ser
+> testável no Linux; o app registra os specs e consome os comandos.
 
 **Entregáveis:**
 
@@ -1285,9 +1291,15 @@ validação no Windows.
 
 ### F5 — Configuração do LiteLLM, providers por API key e teste transacional
 
+**Status:** config store, client e comandos de providers/modelos implementados; teste transacional
+com uma instância LiteLLM real e Credential Manager pendentes de validação no Windows.
+
 **Objetivo:** entregar o backend do passo 2 (exceto Copilot): catálogo, credenciais, config, aplicação e teste.
 
 **Depende de:** F1, F4.
+
+> Implementação: config store e client foram extraídos para `crates/litellm` (`ffg-litellm`);
+> o `src-tauri` mantém a orquestração, segredos e comandos.
 
 **Entregáveis:**
 

@@ -93,28 +93,62 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [ ] E2E real de download/instalação no Windows (artefatos de F2, paths longos/acentos).
 - [ ] Ligar os comandos ao wizard/dashboard (F10).
 
+### F4 — Supervisor de sidecars
+
+- [x] Novo crate `ffg-supervisor`: spawn/stop/restart, estado desejado, health TCP/HTTP,
+  backoff exponencial, limite de restarts e monitor periódico.
+- [x] Logs por serviço em ring buffer com redaction de bearer tokens e limite de linha.
+- [x] Alocação de portas loopback e persistência em `setup.json`.
+- [x] Job Object do Windows com `KILL_ON_JOB_CLOSE` (compilação cruzada validada; runtime pendente).
+- [x] `AppState` com supervisor e tarefa de monitor; comandos `service_status`, `start_services`,
+  `stop_services`, `restart_services` e `service_logs`.
+- [x] Specs montados a partir do runtime ativo; LiteLLM recebe `LITELLM_MASTER_KEY`/`LITELLM_SALT_KEY`.
+- [ ] Validar Job Object, kill tree e restart real no Windows.
+- [ ] Inicialização do Postgres e profile Copilot ficam para F9; proxy in-process para F7.
+
+### F5 — Config do LiteLLM e providers
+
+- [x] Novo crate `ffg-litellm`: `ConfigStore` com candidato, atual e histórico, revisão SHA-256
+  determinística e escrita atômica best-effort.
+- [x] `LiteLlmClient`: health, `POST /v1/messages` de teste e descoberta de modelos, com mapeamento
+  de 401/403/404/429/5xx para códigos da UI.
+- [x] Secret store de plataforma: Credential Manager no Windows e memória nos testes/Linux.
+- [x] Geração e reuso de master key/salt key; injeção no ambiente do LiteLLM.
+- [x] Comandos `providers_catalog`, `models_get`, `models_apply`, `provider_save`, `provider_remove`,
+  `provider_secret_status`, `provider_test` e `litellm_health`.
+- [x] `models_apply` grava o config, atualiza o setup, invalida etapas a jusante e reinicia o
+  LiteLLM quando registrado.
+- [ ] Teste transacional com instância LiteLLM transitória e rollback real de processo.
+- [ ] Validar Credential Manager e restart do LiteLLM no Windows.
+- [ ] Ligar os comandos ao wizard (F10).
+
 ### Evidências locais (Linux)
 
 - `cargo fmt --all -- --check`
-- `cargo clippy -p ffg-core -p ffg-runtime -p manifest-signer -p manifest-verify --all-targets -- -D warnings`
+- `cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p manifest-signer -p manifest-verify --all-targets -- -D warnings`
 - `cargo test -p ffg-core` — 115 testes passando.
 - `cargo test -p ffg-runtime` — 24 testes passando.
+- `cargo test -p ffg-supervisor` — 13 testes passando.
+- `cargo test -p ffg-litellm` — 8 testes passando.
 - `cargo llvm-cov -p ffg-core --fail-under-lines 80` — 92,23% de linhas.
 - `cargo llvm-cov -p ffg-runtime --fail-under-lines 70` — 86,47% de linhas.
+- `cargo llvm-cov -p ffg-supervisor --fail-under-lines 70` — 75,44% de linhas.
+- `cargo llvm-cov -p ffg-litellm --fail-under-lines 70` — 87,39% de linhas.
 - `node scripts/manifest.mjs ...` — manifesto gerado e JSON validado.
 - `manifest-signer` + `manifest-verify` — assinatura e verificação testadas localmente.
 - `pnpm build`
 - `python3 scripts/check_docs.py` — 13 markdown, 4 JSON.
 - `cargo clippy -p frank-figma-gateway --all-targets --target x86_64-pc-windows-gnu -- -D warnings`
-  com `windres` stub (valida tipos/lints; recursos e link ficam para o CI Windows).
+  com `windres` stub (valida tipos/lints; recursos, keyring e link ficam para o CI Windows).
 
 > O build completo do app Tauri não roda neste ambiente Linux por falta de `dbus-1`/WebKitGTK.
 > A validação do app fica pendente para o Windows, conforme combinado.
 
 ### Próximo passo
 
-- F4 — supervisor de sidecars, Job Object, health checks, portas e logs.
-- F5 — config transacional do LiteLLM, providers por API key e teste de conexão.
+- F6 — CA local, DPAPI e trust store do Windows.
+- F7 — proxy MITM: túnel, MITM seletivo, rewrite, auth e streaming.
+- F9 pode correr em paralelo: Postgres embutido + Copilot.
 - O shell do wizard (modal + carrossel) já foi adiantado; o conteúdo real de cada etapa entra junto
   com as fases que implementam os comandos correspondentes.
 
@@ -125,9 +159,12 @@ cd src
 pnpm install --frozen-lockfile
 pnpm build
 cargo fmt --all -- --check
-cargo clippy -p ffg-core --all-targets -- -D warnings
-cargo test -p ffg-core
+cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm --all-targets -- -D warnings
+cargo test -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm
 cargo llvm-cov -p ffg-core --fail-under-lines 80
+cargo llvm-cov -p ffg-runtime --fail-under-lines 70
+cargo llvm-cov -p ffg-supervisor --fail-under-lines 70
+cargo llvm-cov -p ffg-litellm --fail-under-lines 70
 cargo clippy -p frank-figma-gateway --all-targets -- -D warnings
 pnpm tauri build --no-bundle
 ```
