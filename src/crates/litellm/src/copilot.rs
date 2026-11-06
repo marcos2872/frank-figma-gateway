@@ -101,6 +101,7 @@ impl CopilotAuth {
     pub fn from_env() -> Self {
         Self {
             client: reqwest::Client::builder()
+                .no_proxy()
                 .connect_timeout(Duration::from_secs(10))
                 .timeout(Duration::from_secs(20))
                 .build()

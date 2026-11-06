@@ -73,6 +73,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] `scripts/build-litellm-runtime.ps1` (PyInstaller one-folder + validação `--version`).
 - [x] `scripts/build-pgsql-runtime.ps1` (binários oficiais do EDB + `postgres --version`).
 - [x] `scripts/manifest.mjs` (SHA-256, tamanho, URL, `installedSize`, entrypoint).
+- [x] Entrypoint do runtime força UTF-8 no stdio: o banner do LiteLLM usava box-drawing e o
+  binário congelado abria o pipe como cp1252, derrubando o proxy com `UnicodeEncodeError`.
 - [x] Ferramentas `manifest-signer` e `manifest-verify` (Ed25519, `keyId`, janela de validade).
 - [x] Recursos embutidos: `resources/runtime-policy.json` e `resources/keys/manifest-keys.json`
   (placeholder `retired`).
