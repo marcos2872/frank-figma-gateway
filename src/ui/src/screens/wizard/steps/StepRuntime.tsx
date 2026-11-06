@@ -5,6 +5,7 @@ import {
   completeStep,
   DEFAULT_MANIFEST_URL,
   DEFAULT_SIGNATURE_URL,
+  fetchRuntimeManifest,
   installRuntime,
 } from "../../../lib/bridge";
 import type { DownloadProgress } from "../../../lib/contracts";
@@ -22,6 +23,19 @@ export function StepRuntime({ onNext }: WizardStepProps) {
   const [operationId, setOperationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [latest, setLatest] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRuntimeManifest(DEFAULT_MANIFEST_URL, DEFAULT_SIGNATURE_URL)
+      .then((manifest) => {
+        if (!cancelled) setLatest(manifest.litellm.version);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +90,7 @@ export function StepRuntime({ onNext }: WizardStepProps) {
   }
 
   const installed = setup?.runtime.activeLitellm;
+  const outdated = Boolean(installed && latest && installed !== latest);
   const percent =
     progress && progress.total > 0
       ? Math.round((progress.downloaded / progress.total) * 100)
@@ -90,6 +105,7 @@ export function StepRuntime({ onNext }: WizardStepProps) {
       {installed ? (
         <p className="wizard-success">
           LiteLLM {installed} já está instalado.
+          {latest && latest !== installed ? ` Disponível: ${latest}.` : ""}
         </p>
       ) : null}
       {progress ? (
@@ -116,12 +132,16 @@ export function StepRuntime({ onNext }: WizardStepProps) {
         ) : null}
         <button
           type="button"
-          disabled={Boolean(operationId) || Boolean(installed)}
+          disabled={Boolean(operationId) || (Boolean(installed) && !outdated)}
           onClick={() => void install()}
         >
-          {installed ? "Instalado" : "Baixar e instalar LiteLLM"}
+          {outdated
+            ? `Atualizar para ${latest}`
+            : installed
+              ? "Instalado"
+              : "Baixar e instalar LiteLLM"}
         </button>
-        {installed ? (
+        {installed && !outdated ? (
           <button
             type="button"
             className="secondary"
