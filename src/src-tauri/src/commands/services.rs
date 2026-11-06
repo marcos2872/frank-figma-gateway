@@ -43,11 +43,28 @@ pub async fn service_status(state: State<'_, AppState>) -> Result<Vec<ServiceSta
 #[tauri::command]
 pub async fn start_services(state: State<'_, AppState>) -> Result<Vec<ServiceStatus>, UiError> {
     register_services(&state).await?;
-    state
+    let statuses = state
         .supervisor
         .start_all()
         .await
-        .map_err(|error| error.to_ui_error())
+        .map_err(|error| error.to_ui_error())?;
+    // Com a integração ativa, o proxy também precisa voltar a subir.
+    if integration_is_active(&state) {
+        if let Err(error) = crate::commands::proxy::ensure_proxy(&state).await {
+            log::warn!("proxy não subiu ao iniciar serviços: {}", error.message);
+        }
+    }
+    Ok(statuses)
+}
+
+fn integration_is_active(state: &AppState) -> bool {
+    let path = state.paths.integration_file();
+    let Ok(raw) = std::fs::read(&path) else {
+        return false;
+    };
+    serde_json::from_slice::<ffg_core::integration::IntegrationJournal>(&raw)
+        .map(|journal| journal.status == ffg_core::integration::IntegrationStatus::Active)
+        .unwrap_or(false)
 }
 
 #[tauri::command]
