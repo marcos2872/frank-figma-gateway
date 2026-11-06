@@ -24,29 +24,18 @@ if (-not (Test-Path $py)) { throw "python da venv não encontrado" }
 & $py -m pip install "litellm[proxy]==$Version" pyinstaller
 if ($LASTEXITCODE -ne 0) { throw "pip install do LiteLLM falhou" }
 
+# O entrypoint vive num .py versionado: embutir Python num here-string do
+# PowerShell fazia a sintaxe do shell comer crases e `$` do código.
+$template = Join-Path $PSScriptRoot "runtime\litellm-entrypoint.py"
+if (-not (Test-Path $template)) { throw "template do entrypoint não encontrado: $template" }
+
+$entrySource = Get-Content -Raw -Encoding utf8 $template
+if (-not $entrySource.Contains("__LITELLM_VERSION__")) {
+  throw "template sem o marcador __LITELLM_VERSION__: $template"
+}
+
 $entry = Join-Path $work "entrypoint.py"
-@"
-import sys
-
-VERSION = "$Version"
-
-
-def main() -> int:
-    # O CLI do LiteLLM não expõe --version; o probe do app espera a versão exata.
-    if "--version" in sys.argv[1:]:
-        print(f"litellm {VERSION}")
-        return 0
-
-    # `litellm.proxy.proxy_server` não exporta `run_server`; o comando Click vive em proxy_cli.
-    from litellm.proxy.proxy_cli import run_server
-
-    run_server()
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-"@ | Set-Content -Encoding utf8 $entry
+Set-Content -Path $entry -Value $entrySource.Replace("__LITELLM_VERSION__", $Version) -Encoding utf8 -NoNewline
 
 Push-Location $work
 try {
