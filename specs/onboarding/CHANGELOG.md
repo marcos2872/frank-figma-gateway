@@ -25,7 +25,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] `ui`: contratos TypeScript, bridge tipada, eventos e store do dashboard.
 - [x] `ui`: dashboard extraído de `App.tsx` e passando a consumir o store.
 - [ ] Troca atômica real no Windows com `ReplaceFileW` (o fallback atual remove + renomeia).
-- [ ] Validação de compilação/execução no Windows (Tauri, registry, keyring).
+- [x] Compilação e build Tauri validados no Windows/MSVC (`clippy`, testes e `tauri build --no-bundle`).
+- [ ] Execução real de registry, keyring, DPAPI e trust store no Windows.
 - [ ] Adapter `keyring`/Credential Manager (previsto para F5, quando as credenciais entram em uso).
 
 ### Decisão de UX — modal + carrossel
@@ -91,6 +92,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] `AppState` embute as chaves públicas e a política de runtime.
 - [x] Testes com `wiremock` para download/resume/hash, extração, instalação, manifesto e offline.
 - [ ] E2E real de download/instalação no Windows (artefatos de F2, paths longos/acentos).
+- [x] Crate restaurado no repositório: `src/.gitignore` ignorava `crates/runtime` com o padrão
+  `runtime/`; corrigido para `/runtime/` e os 34 testes do crate passam no Windows/MSVC.
 - [ ] Ligar os comandos ao wizard/dashboard (F10).
 
 ### F4 — Supervisor de sidecars
@@ -191,14 +194,25 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [ ] Testes de UI (Vitest/RTL/axe), teclado e leitor de tela pendentes.
 - [ ] E2E do wizard completo no Windows com artefatos reais.
 
+### Correções de UI — modal do wizard
+
+- [x] Rolagem: o `.wizard-viewport` passou a ser o container de rolagem (`overflow-y: auto`); antes
+  o `overflow-y` ficava no slide, que não tinha altura definida, e o conteúdo era cortado.
+- [x] Scroll volta ao topo ao trocar de etapa.
+- [x] Mensagens de erro: o `UiError` devolvido pelo `invoke` é normalizado em `ui/src/lib/errors.ts`;
+  antes a UI exibia `[object Object]`.
+- [ ] Download real do LiteLLM continua bloqueado: não há release publicado (manifesto responde 404)
+  e a chave embutida é o placeholder `retired`.
+
 ### Validação no Windows — pendências
 
 > Lista consolidada de tudo que ainda precisa ser executado/validado em uma máquina Windows antes de
 > considerar o onboarding pronto para release.
 
 **Toolchain e build**
-- [ ] `cargo clippy -p frank-figma-gateway --all-targets -- -D warnings` com MSVC.
-- [ ] `pnpm tauri build --no-bundle` e build do instalador NSIS/MSI.
+- [x] `cargo clippy -p frank-figma-gateway --all-targets -- -D warnings` com MSVC.
+- [x] `pnpm tauri build --no-bundle` (binário gerado em `src/target/release/frank-figma-gateway.exe`).
+- [ ] Build do instalador NSIS/MSI e assinatura.
 - [ ] WebView2 no Windows 10 limpo e CSP/capabilities do Tauri.
 - [ ] Empacotamento dos recursos `resources/keys` e `runtime-policy.json` no bundle.
 
@@ -305,6 +319,20 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 > O build completo do app Tauri não roda neste ambiente Linux por falta de `dbus-1`/WebKitGTK.
 > A validação do app fica pendente para o Windows, conforme combinado.
+
+### Evidências Windows (x64, MSVC)
+
+- `cargo fmt --all -- --check`
+- `cargo clippy --workspace --all-targets -- -D warnings` (app Tauri incluído).
+- `cargo test --workspace` — **184 testes, 0 falhas** (core 115, runtime 34, supervisor 10,
+  litellm 8, src-tauri 8, proxy 5, postgres 4).
+- `pnpm build`
+- `pnpm tauri build --no-bundle` — binário em `src/target/release/frank-figma-gateway.exe`.
+- `scripts/check_docs.py` (equivalente em Node; não há Python na máquina) — 13 markdown, 4 json.
+
+> `cargo llvm-cov` não está instalado nesta máquina; o gate de cobertura segue apenas na CI.
+> Ainda não executado em runtime: keyring/DPAPI, trust store, `HKCU\Environment`, `initdb`,
+> download real dos artefatos e Figma real.
 
 ### Próximo passo
 
