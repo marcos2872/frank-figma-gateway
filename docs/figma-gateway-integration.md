@@ -38,7 +38,7 @@ flowchart LR
 
 | Item | Muda? |
 |---|---|
-| `FigmaSetup.exe`, `app.asar`, `Figma.exe` | Não |
+| Arquivos instalados do Figma | Não |
 | UI, fluxos, permissões, ferramentas | Não |
 | Token da Figma e renovação | Não |
 | Nome do modelo no seletor | Não |
@@ -84,7 +84,7 @@ sequenceDiagram
 
 ### Por que funciona
 
-- `main.js` passa `NODE_USE_SYSTEM_CA=1` ao figcode; o `claude` herda.
+- O processo main passa `NODE_USE_SYSTEM_CA=1` ao figcode; o `claude` herda.
 - Claude Code suporta `NODE_EXTRA_CA_CERTS` e `HTTPS_PROXY`.
 - Não há certificate pinning.
 - O figcode herda `process.env`; `HTTPS_PROXY` é lido no start do Figma.
@@ -174,7 +174,7 @@ O padrão é `translate` com `fail-closed`; fail-open é opcional (usa o modelo 
 | Item | Versão validada |
 |---|---|
 | Figma desktop | 126.11.7 |
-| figcode | 20261022.212230 (`b823ba69…`) |
+| figcode | 20261022.212230 |
 | Claude Code | 2.1.308 |
 | LiteLLM | `v1.108.1` |
 | Postgres | 16.x |

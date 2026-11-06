@@ -34,7 +34,7 @@ para o provider escolhido. O app Tauri instala, configura e mantém tudo rodando
 - Funcionar sem conta Figma com IA habilitada.
 - Cobrir IA que roda no servidor da Figma fora do `figcode`.
 - Redistribuir o app da Figma ou o Claude Code.
-- Alterar `app.asar` ou binários.
+- Alterar a instalação do Figma.
 
 ## 4. Personas e casos de uso
 

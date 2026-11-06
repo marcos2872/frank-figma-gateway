@@ -1,15 +1,14 @@
 # Arquitetura — Como o app da Figma usa modelos de LLM
 
-> Documento de engenharia reversa do artefato `FigmaSetup.exe` **126.11.7** e do agente `figcode`
-> **20261022.212230** (SHA `b823ba69d4c8ff3bbb8fa8e6947b37c2e1a9c109`).
-> Baseado em análise estática dos binários e em um probe HTTP da rota do gateway. Não houve captura de
-> tráfego em runtime; os pontos marcados como **a confirmar** exigem essa captura.
+> Descrição do fluxo de IA do Figma desktop (`figcode`, Claude Code e AI Gateway) e do contrato
+> usado na inferência. Reflete o comportamento do produto; pontos marcados como **a confirmar**
+> dependem de validação em execução.
 
 ## 1. Visão geral
 
-A inferência **não** acontece no processo Electron e **não** passa pelo `app.asar`. O app baixa um
-agente separado (`figcode`), que embute o **Claude Code** e fala com o **AI Gateway** da Figma por HTTPS
-no formato **Anthropic Messages API** com streaming SSE.
+A inferência **não** acontece no processo Electron. O app usa um agente separado (`figcode`), que
+embute o **Claude Code** e fala com o **AI Gateway** da Figma por HTTPS no formato
+**Anthropic Messages API** com streaming SSE.
 
 ```mermaid
 flowchart LR
@@ -19,8 +18,8 @@ flowchart LR
     end
 
     subgraph Desktop Windows
-        E[Electron main<br/>main.js]
-        A[app.asar<br/>bindings / renderer]
+        E[Processo main<br/>Electron]
+        A[Renderer<br/>bindings da UI]
         F[figcode daemon<br/>stdio JSON]
         C[claude<br/>Claude Code 2.1.308]
         X[FigmaAgent<br/>Rust/actix<br/>fontes, URL, spellcheck]
@@ -40,8 +39,8 @@ flowchart LR
 | Componente | Responsabilidade | Tecnologia |
 |---|---|---|
 | Web app (remoto) | UI de IA, feature flags, cunhar token de inferência por turno | JS da Figma |
-| `app.asar` (renderer) | Bindings entre a UI e o processo main | Electron |
-| `main.js` | Ciclo de vida do `figcode`, download/atualização, handshake stdio, roteamento por tab | Node/Electron |
+| Renderer | Bindings entre a UI e o processo main | Electron |
+| Processo main | Ciclo de vida do `figcode`, download/atualização, handshake stdio, roteamento por tab | Node/Electron |
 | `figcode` | Daemon do agente; sessões, ferramentas MCP, sandbox, tradução de eventos | Bun |
 | `claude` | Cliente de inferência (loop do agente, tool use, streaming) | Claude Code 2.1.308 |
 | AI Gateway (`api.figma.com`) | Endpoint compatível com Anthropic Messages; autenticação e roteamento dos modelos Figma | Serviço Figma |
@@ -78,7 +77,7 @@ sequenceDiagram
 
 ## 3. Protocolo Electron ↔ figcode (stdio JSON)
 
-O `main.js` spawna `figcode daemon` com `stdio: "pipe"` e troca **uma linha JSON por mensagem**.
+O processo main spawna `figcode daemon` com `stdio: "pipe"` e troca **uma linha JSON por mensagem**.
 Não há HTTP, WebSocket nem protobuf nessa perna.
 
 ### Handshake
@@ -138,11 +137,7 @@ CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST=1
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ```
 
-Constante que define o path (no bundle do `figcode`):
-
-```text
-EXPECTED_AI_GATEWAY_AUTH_BASE_URL_SUFFIX = "/ai-gateway/llm/provider/universal"
-```
+O path do gateway termina em `/ai-gateway/llm/provider/universal`.
 
 Endpoints usados pelo cliente:
 
@@ -150,9 +145,9 @@ Endpoints usados pelo cliente:
 |---|---|---|
 | `POST` | `/v1/messages` | Inferência (streaming SSE e não-streaming) |
 | `POST` | `/v1/messages/count_tokens?beta=true` | Contagem de tokens de contexto |
-| — | `/v1/messages/cache_touch`, `/v1/messages/batches` | Presentes no binário; uso no fluxo Make **a confirmar** |
+| — | `/v1/messages/cache_touch`, `/v1/messages/batches` | Endpoints adicionais do cliente; uso no fluxo Make **a confirmar** |
 
-Probe (sem token) confirma a rota:
+A rota responde 401 sem autenticação:
 
 ```text
 GET https://api.figma.com/ai-gateway/llm/provider/universal/v1/messages       -> 401 Unauthorized
@@ -250,39 +245,23 @@ Características:
 | Certificate pinning | **Não encontrado** no cliente de inferência |
 | Trust store | `NODE_USE_SYSTEM_CA=1` passado pelo app ao `figcode`; Claude Code também suporta `NODE_EXTRA_CA_CERTS` |
 | Proxy | `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY` honrados; descoberta automática atrás da flag `make_local_enable_proxy_discovery` |
-| Download do figcode | SHA-256 verificado contra o `checksum` de `UPDATE.json` |
-| `app.asar` | Header próprio com `/.codesign`; irrelevante para interceptação de rede |
+| Atualização | pacote do figcode verificado por checksum antes de instalar |
+| Pacote do app | assinatura própria; não é alterado pelo gateway |
 | Atualização | `figcode` sai com código `42` para aplicar update; o main respawna |
 
 ## 8. O que não é a chamada de IA
 
-| Artefato | Natureza | Por que não é IA |
+| Componente | Natureza | Por que não é IA |
 |---|---|---|
-| `lazy/external/proxy_agent.js` | Pacote npm `proxy-agent` (HTTP/HTTPS/SOCKS) | Usado no LiveGraph (WebSocket do arquivo) |
-| `resources/FigmaAgent/figma_agent.exe` | Rust/actix-web | Fontes, `can-open-url`, spellcheck, updater |
-| `lazy/external/codegen_mcp_server.js` | Servidor MCP | Expõe ferramentas de codegen; `text/event-stream` é transporte MCP |
-| `lazy/external/fcm_manager.js` | Firebase Cloud Messaging | Push notifications |
-| `lazy/external/livegraph_schema.js` | Schema do LiveGraph | Sincronização do documento |
+| `proxy_agent` | Pacote npm `proxy-agent` (HTTP/HTTPS/SOCKS) | Usado no LiveGraph (WebSocket do arquivo) |
+| `FigmaAgent` (agente nativo) | Rust/actix-web | Fontes, `can-open-url`, spellcheck, updater |
+| `codegen_mcp_server` | Servidor MCP | Expõe ferramentas de codegen; `text/event-stream` é transporte MCP |
+| `fcm_manager` | Firebase Cloud Messaging | Push notifications |
+| `livegraph_schema` | Schema do LiveGraph | Sincronização do documento |
 
-## 9. Evidências
+## 9. Limitações
 
-| Fato | Onde foi verificado |
-|---|---|
-| Spawn do `figcode` e env | `app-asar/main.js` (`RPe()`, `dV()`, `FIGMA_MCP_TOKEN`) |
-| Download/checksum | `app-asar/main.js` (`iPe()` compara SHA-256 com `checksum`) |
-| Sufixo do gateway | `figcode`: `EXPECTED_AI_GATEWAY_AUTH_BASE_URL_SUFFIX` |
-| `ANTHROPIC_BASE_URL`/`TOKEN` | `figcode`: `getGatewaySettingsEnv` / `getGatewayProcessEnv` |
-| Refresh de token | `figcode`: `AgentSession.maybeRefreshAuthToken`, `request_auth_token_refresh` |
-| Modelo default | `figcode`: `MODEL_OPUS_48 = "claude-opus-4-8"` |
-| Endpoints | `claude`: `/v1/messages`, `/v1/messages/count_tokens?beta=true`, `text/event-stream` |
-| Host/rota | Probe HTTP: 401 em `api.figma.com` e variantes |
-| Versões | `figcode --version`; `claude --version` |
-
-## 10. Limitações do mapeamento
-
-- Sem captura de tráfego real: corpo, headers exatos e sequência completa de SSE ainda não foram
-  observados em execução.
-- O host é inferido por constante + probe; o valor é cunhado pelo web client e pode variar por ambiente.
-- Não foi verificado se o gateway valida o token de forma que o agente perceba (o gateway será
-  substituído, então em tese é irrelevante).
+- O corpo, os headers e a sequência SSE exatos ainda precisam ser confirmados em execução.
+- O host e o path podem variar por ambiente (stable, staging, gov).
+- O gateway será substituído; a validação do token original não é relevante para o gateway.
 - O catálogo de modelos pode mudar entre versões do Claude Code.

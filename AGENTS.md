@@ -80,8 +80,6 @@ docs/
 licenses/
 ```
 
-`executavel/` é artefato de análise e **não** entra no Git.
-
 ## 5. Fluxo de trabalho
 
 - **Análise** (opinar, revisar, diagnosticar): entregue achados e plano; não edite nem rode comandos que
@@ -172,7 +170,7 @@ Regras:
 - Um commit = uma mudança lógica; evite misturar refactor com feature.
 - Sem ponto final no resumo; ≤ 100 caracteres.
 - Corpo explica o **porquê**, não o como.
-- Nunca commitar `.env`, chaves, tokens, `executavel/` ou binários gerados.
+- Nunca commitar `.env`, chaves, tokens ou binários gerados.
 - `BREAKING CHANGE:` para mudança incompatível.
 - Nunca `git push --force` em branch compartilhada; `--force-with-lease` só com autorização.
 - Antes de commitar: rodar fmt/lint/testes relevantes.
