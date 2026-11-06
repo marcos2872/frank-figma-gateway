@@ -1,0 +1,168 @@
+:root {
+  color-scheme: dark;
+  --ink: #e8ecf4;
+  --muted: #9aa4b5;
+  --bg: #12151c;
+  --panel: #1a1f29;
+  --panel-border: #2a3140;
+  --accent: #3ddc97;
+  --danger: #ff6b6b;
+  --warn: #f5c451;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at 20% -10%, #1f2a2a 0%, var(--bg) 45%);
+  color: var(--ink);
+}
+
+.shell {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 28px 48px;
+  display: grid;
+  gap: 20px;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.hero p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.status-card {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 12px;
+  background: #161b23;
+}
+
+.status-card header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.status-card small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.status-running .status-dot {
+  background: var(--accent);
+}
+
+.status-starting .status-dot,
+.status-degraded .status-dot {
+  background: var(--warn);
+}
+
+.status-failed .status-dot {
+  background: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #0b1a13;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  border-color: var(--panel-border);
+  color: var(--ink);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+code {
+  background: #0f1319;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 0.85em;
+}
+
+.hint,
+footer small {
+  color: var(--muted);
+}
+
+.message {
+  margin: 0;
+  border-left: 3px solid var(--warn);
+  padding: 8px 12px;
+  background: #1d1a12;
+  color: var(--ink);
+}
