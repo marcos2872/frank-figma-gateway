@@ -141,8 +141,14 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("failed to run the Tauri application");
+        .build(tauri::generate_context!())
+        .expect("failed to build the Tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app.state::<state::AppState>();
+                commands::integration::restore_system_proxy_on_exit(state.inner());
+            }
+        });
 }
 
 /// Restaura o proxy quando o journal da integração está `active`.
@@ -163,11 +169,28 @@ async fn restore_integration(state: &state::AppState) {
         return;
     }
 
+    // O proxy sozinho responde 502 sem o LiteLLM: a integração só volta a
+    // funcionar quando os sidecars também sobem.
+    if let Err(error) = commands::services::start_services_inner(state).await {
+        log::warn!(
+            "integração ativa, mas os serviços não subiram: {}",
+            error.message
+        );
+    }
+
     match commands::proxy::ensure_proxy(state).await {
-        Ok(status) => log::info!(
-            "integração ativa: proxy restaurado na porta {}",
-            status.port
-        ),
+        Ok(status) => {
+            log::info!(
+                "integração ativa: proxy restaurado na porta {}",
+                status.port
+            );
+            if let Err(error) = commands::integration::ensure_system_proxy(state, status.port) {
+                log::warn!(
+                    "integração ativa, mas o proxy do sistema não foi aplicado: {}",
+                    error.message
+                );
+            }
+        }
         Err(error) => log::warn!("integração ativa, mas o proxy não subiu: {}", error.message),
     }
 }

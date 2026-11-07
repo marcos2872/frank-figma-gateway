@@ -172,6 +172,12 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
   fallback em memória.
 - [x] Proxy do sistema (WinINET `Internet Settings`) com snapshot/restore: o renderer da Figma é
   Chromium e ignora `HTTPS_PROXY`; sem isso só o agente Node passaria pelo MITM.
+- [x] Startup reaplica o WinINET quando o journal está `active`, inclusive em instalações antigas
+  (cria o snapshot se faltar); o “Instalar integração” ficou idempotente e a saída restaura o
+  proxy para não deixar a máquina sem internet.
+- [x] Startup sobe os sidecars quando a integração está ativa: sem o LiteLLM o proxy respondia 502
+  depois de reiniciar o app.
+- [x] LiteLLM passou a escutar só em `127.0.0.1` (antes `0.0.0.0`).
 - [x] Instalação transacional: CA → proxy → env → validação, com journal em
   `state/integration.json`.
 - [x] Snapshot/restore do env protegido por DPAPI (fallback plain nos testes).
@@ -181,7 +187,11 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 - [x] Validação: CA instalada, proxy rodando, HTTPS_PROXY/HTTP_PROXY/NO_PROXY, self-test de
   TLS/rewrite e presença do Figma.
 - [x] Tray “Reconfigurar”/“Configurar Figma” emite `wizard://open`; a UI abre o modal.
-- [ ] Validar instalação/remoção, HKCU e restart com o Figma real no Windows.
+- [x] Validado no Windows: instalação via startup, restart do Figma e renderer conectado ao proxy
+  do sistema (27 conexões em `127.0.0.1:57995`).
+- [x] Validado no Windows: proxy → rewrite → LiteLLM → OpenRouter com mensagem, `count_tokens` e
+  streaming SSE (`200` e chunks reais).
+- [ ] Validar remoção completa (CA + env + WinINET) com o Figma real.
 - [ ] Tratar rollback/erro parcial com o app em execução e trabalho não salvo.
 
 ### F9 — Postgres embutido e Copilot

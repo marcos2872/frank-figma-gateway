@@ -123,6 +123,10 @@ pub async fn remove_figma_integration(state: State<'_, AppState>) -> Result<Setu
 async fn install(state: &AppState, restart_figma: bool) -> Result<IntegrationView, UiError> {
     let journal = load_journal(state)?;
     if journal.status == IntegrationStatus::Active {
+        // Instalações anteriores ao proxy do sistema têm o journal ativo mas
+        // nunca gravaram o WinINET. Reaplicar aqui torna o botão idempotente.
+        let proxy = ensure_proxy(state).await?;
+        ensure_system_proxy(state, proxy.port)?;
         return view(state, &journal);
     }
 
@@ -178,19 +182,7 @@ async fn install_steps(state: &AppState, restart_figma: bool) -> Result<Integrat
 
     // O renderer da Figma é Chromium e ignora `HTTPS_PROXY`: sem o proxy do
     // sistema, só o agente Node passaria pelo MITM.
-    let system_proxy = state
-        .system_proxy
-        .snapshot()
-        .map_err(|error| platform_error(error.to_string()))?;
-    save_system_proxy_snapshot(state, &system_proxy)?;
-    state
-        .system_proxy
-        .apply(proxy.port)
-        .map_err(|error| platform_error(error.to_string()))?;
-    log::info!(
-        "integração: proxy do sistema apontando para 127.0.0.1:{}",
-        proxy.port
-    );
+    ensure_system_proxy(state, proxy.port)?;
 
     log::info!("integração: validando TLS/rewrite");
     let validation = validate(state).await?;
@@ -252,6 +244,79 @@ async fn remove(state: &AppState) -> Result<IntegrationView, UiError> {
     save_journal(state, &journal)?;
 
     view(state, &journal)
+}
+
+/// Aponta o proxy do sistema para o proxy local, preservando o estado anterior.
+///
+/// Instalações feitas antes do suporte a WinINET não têm snapshot. Nesse caso
+/// capturamos o estado atual antes de aplicar; se ele já for o nosso proxy,
+/// não há original para recuperar.
+pub(crate) fn ensure_system_proxy(state: &AppState, port: u16) -> Result<(), UiError> {
+    let current = state
+        .system_proxy
+        .snapshot()
+        .map_err(|error| platform_error(error.to_string()))?;
+    if load_system_proxy_snapshot(state)?.is_none() && !is_our_proxy(&current, port) {
+        save_system_proxy_snapshot(state, &current)?;
+    }
+    state
+        .system_proxy
+        .apply(port)
+        .map_err(|error| platform_error(error.to_string()))?;
+    log::info!("integração: proxy do sistema apontando para 127.0.0.1:{port}");
+    Ok(())
+}
+
+/// Restaura o proxy do sistema antes de o processo encerrar.
+///
+/// Sem isto, o WinINET continuaria apontando para uma porta morta e todos os
+/// apps do usuário ficariam sem internet até o app subir de novo.
+pub(crate) fn restore_system_proxy_on_exit(state: &AppState) {
+    match load_system_proxy_snapshot(state) {
+        Ok(Some(snapshot)) => match state.system_proxy.restore(&snapshot) {
+            Ok(()) => {
+                let _ = fs::remove_file(system_proxy_path(state));
+                log::info!("integração: proxy do sistema restaurado na saída");
+            }
+            Err(error) => {
+                log::warn!("falha ao restaurar o proxy do sistema na saída: {error}");
+            }
+        },
+        Ok(None) => {
+            // Sem snapshot (instalação legada): se o WinINET ainda aponta para
+            // nós, desliga para não deixar a máquina sem internet.
+            let port = load_journal(state)
+                .ok()
+                .and_then(|journal| journal.proxy_port);
+            let Some(port) = port else {
+                return;
+            };
+            let Ok(current) = state.system_proxy.snapshot() else {
+                return;
+            };
+            if !is_our_proxy(&current, port) {
+                return;
+            }
+            let mut disabled = current;
+            disabled.enabled = Some(0);
+            if let Err(error) = state.system_proxy.restore(&disabled) {
+                log::warn!("falha ao desligar o proxy do sistema na saída: {error}");
+            } else {
+                log::info!("integração: proxy do sistema desligado na saída (sem snapshot)");
+            }
+        }
+        Err(error) => {
+            log::warn!(
+                "falha ao ler o snapshot do proxy do sistema na saída: {}",
+                error.message
+            );
+        }
+    }
+}
+
+fn is_our_proxy(snapshot: &SystemProxySnapshot, port: u16) -> bool {
+    let expected = format!("127.0.0.1:{port}");
+    snapshot.enabled == Some(1) && snapshot.server.as_deref() == Some(expected.as_str())
 }
 
 async fn validate(state: &AppState) -> Result<IntegrationValidation, UiError> {
@@ -491,4 +556,37 @@ fn now_utc() -> String {
     time::OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_when_the_system_proxy_is_ours() {
+        let ours = SystemProxySnapshot {
+            enabled: Some(1),
+            server: Some("127.0.0.1:57995".to_owned()),
+            override_list: Some("<local>".to_owned()),
+            auto_config_url: None,
+        };
+        assert!(is_our_proxy(&ours, 57995));
+        assert!(!is_our_proxy(&ours, 57996));
+    }
+
+    #[test]
+    fn ignores_disabled_or_other_servers() {
+        let disabled = SystemProxySnapshot {
+            enabled: Some(0),
+            server: Some("127.0.0.1:57995".to_owned()),
+            ..SystemProxySnapshot::default()
+        };
+        let corporate = SystemProxySnapshot {
+            enabled: Some(1),
+            server: Some("proxy.corp:8080".to_owned()),
+            ..SystemProxySnapshot::default()
+        };
+        assert!(!is_our_proxy(&disabled, 57995));
+        assert!(!is_our_proxy(&corporate, 57995));
+    }
 }

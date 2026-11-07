@@ -42,12 +42,7 @@ pub async fn service_status(state: State<'_, AppState>) -> Result<Vec<ServiceSta
 
 #[tauri::command]
 pub async fn start_services(state: State<'_, AppState>) -> Result<Vec<ServiceStatus>, UiError> {
-    register_services(&state).await?;
-    state
-        .supervisor
-        .start_all()
-        .await
-        .map_err(|error| error.to_ui_error())?;
+    start_services_inner(&state).await?;
     // Com a integração ativa, o proxy também precisa voltar a subir.
     if integration_is_active(&state) {
         if let Err(error) = crate::commands::proxy::ensure_proxy(&state).await {
@@ -55,6 +50,19 @@ pub async fn start_services(state: State<'_, AppState>) -> Result<Vec<ServiceSta
         }
     }
     service_status(state).await
+}
+
+/// Sobe os sidecars registrados. Usado pelo comando e pela restauração da
+/// integração no startup, que precisa deixar o LiteLLM pronto antes de o
+/// Figma voltar a falar com o proxy.
+pub(crate) async fn start_services_inner(state: &AppState) -> Result<(), UiError> {
+    register_services(state).await?;
+    state
+        .supervisor
+        .start_all()
+        .await
+        .map_err(|error| error.to_ui_error())?;
+    Ok(())
 }
 
 fn integration_is_active(state: &AppState) -> bool {
@@ -191,6 +199,8 @@ async fn register_services(state: &AppState) -> Result<(), UiError> {
                     args: vec![
                         "--config".to_owned(),
                         config.to_string_lossy().into_owned(),
+                        "--host".to_owned(),
+                        "127.0.0.1".to_owned(),
                         "--port".to_owned(),
                         litellm_port.to_string(),
                     ],
