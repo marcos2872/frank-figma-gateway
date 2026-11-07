@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getProxyStatus, isTauri, selfTestProxy } from "../lib/bridge";
+import { getProxyStatus, isTauri, restartFigma, selfTestProxy } from "../lib/bridge";
 import type {
   ProxySelfTest,
   ProxyStatus,
@@ -54,6 +54,8 @@ export default function Dashboard() {
   const [proxy, setProxy] = useState<ProxyStatus | null>(null);
   const [selfTest, setSelfTest] = useState<ProxySelfTest | null>(null);
   const [testing, setTesting] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [restartMessage, setRestartMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -81,6 +83,23 @@ export default function Dashboard() {
       setSelfTest({ ok: false, status: 0, message: errorMessage(problem) });
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function restartFigmaApp() {
+    setRestarting(true);
+    setRestartMessage(null);
+    try {
+      const info = await restartFigma();
+      setRestartMessage(
+        info.running
+          ? "Figma reiniciado com HTTPS_PROXY no ambiente."
+          : "Figma aberto.",
+      );
+    } catch (problem) {
+      setRestartMessage(errorMessage(problem));
+    } finally {
+      setRestarting(false);
     }
   }
 
@@ -235,7 +254,16 @@ export default function Dashboard() {
           >
             Remover
           </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={restarting || !isTauri}
+            onClick={() => void restartFigmaApp()}
+          >
+            {restarting ? "Reiniciando…" : "Reiniciar Figma"}
+          </button>
         </div>
+        {restartMessage ? <p className="hint">{restartMessage}</p> : null}
       </section>
 
       {info ? (
