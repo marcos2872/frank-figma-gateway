@@ -1,5 +1,12 @@
-import { isTauri } from "../lib/bridge";
-import type { ServiceState, ServiceStatus } from "../lib/contracts";
+import { useEffect, useState } from "react";
+import { getProxyStatus, isTauri, selfTestProxy } from "../lib/bridge";
+import type {
+  ProxySelfTest,
+  ProxyStatus,
+  ServiceState,
+  ServiceStatus,
+} from "../lib/contracts";
+import { errorMessage } from "../lib/errors";
 import {
   setupStatusLabel,
   stepLabel,
@@ -44,6 +51,39 @@ export default function Dashboard() {
     removeFigma,
   } = useAppStore();
 
+  const [proxy, setProxy] = useState<ProxyStatus | null>(null);
+  const [selfTest, setSelfTest] = useState<ProxySelfTest | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    let cancelled = false;
+    const tick = () => {
+      getProxyStatus()
+        .then((next) => {
+          if (!cancelled) setProxy(next);
+        })
+        .catch(() => undefined);
+    };
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  async function testProxy() {
+    setTesting(true);
+    try {
+      setSelfTest(await selfTestProxy());
+    } catch (problem) {
+      setSelfTest({ ok: false, status: 0, message: errorMessage(problem) });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <main className="shell">
       <header className="hero">
@@ -84,6 +124,45 @@ export default function Dashboard() {
         </div>
         <small className="hint">
           Sidecars supervisionados pelo app, com health check e restart automático.
+        </small>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Proxy MITM</h2>
+          <div className="actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={testing || !isTauri}
+              onClick={() => void testProxy()}
+            >
+              {testing ? "Testando…" : "Testar proxy"}
+            </button>
+          </div>
+        </div>
+        <p className="hint">
+          {proxy?.running
+            ? `Rodando em 127.0.0.1:${proxy.port}`
+            : "Parado"}
+          {proxy
+            ? ` · conexões ${proxy.connections} · requisições de IA ${proxy.aiRequests} · falhas ${proxy.failures}`
+            : ""}
+        </p>
+        {proxy?.firstAiRequestAt ? (
+          <p className="hint">Primeira requisição de IA: {proxy.firstAiRequestAt}</p>
+        ) : null}
+        {selfTest ? (
+          <p className="hint">
+            {selfTest.ok
+              ? `Self-test OK (HTTP ${selfTest.status}): ${selfTest.message}`
+              : `Self-test falhou: ${selfTest.message}`}
+          </p>
+        ) : null}
+        <small className="hint">
+          Use o Figma normalmente: se “requisições de IA” continuar em 0, o
+          tráfego não está passando pelo proxy — reabra o Figma depois de
+          instalar a integração.
         </small>
       </section>
 
