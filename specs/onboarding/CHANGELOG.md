@@ -397,8 +397,8 @@ Runs de validação — nenhum release publicado ainda:
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets -- -D warnings` (app Tauri incluído).
-- `cargo test --workspace` — **192 testes, 0 falhas** (core 116, litellm 12, runtime 34,
-  supervisor 10, src-tauri 8, proxy 8, postgres 4).
+- `cargo test --workspace` — **195 testes, 0 falhas** (core 117, litellm 12, runtime 34,
+  supervisor 10, src-tauri 10, proxy 8, postgres 4).
 - `cargo test -p ffg-proxy` — inclui o MITM com `figaro-gpt-6-sol` chegando ao upstream como
   `claude-opus-4-8`.
 - `pnpm build`
@@ -408,6 +408,50 @@ Runs de validação — nenhum release publicado ainda:
 > `cargo llvm-cov` não está instalado nesta máquina; o gate de cobertura segue apenas na CI.
 > Ainda não executado em runtime: keyring/DPAPI, trust store, `HKCU\Environment`, `initdb`,
 > download real dos artefatos e Figma real.
+
+### Limitação descoberta — IA cloud vs Make Local (2026-11-06)
+
+**O que foi validado**
+- [x] Proxy + CA + rewrite + LiteLLM: `POST /ai-gateway/.../v1/messages` pelo proxy → `200`,
+  `count_tokens` → `200` e SSE com chunks reais.
+- [x] O Figma usa o proxy do sistema (WinINET) quando ele está aplicado; o app reaplica no startup
+  e sobe os sidecars.
+
+**Por que o chat cloud não passa pelo gateway**
+- [x] O chat cloud (Agents e Make) usa o protocolo do agente da Figma, não uma chamada de modelo:
+  - `POST /api/cortex/assistant/chat` (Agents) com `plainText`, `message.content`, `thread`, etc.
+  - `POST /api/cortex/shared/figmake` (Make cloud) com `aiChatMessages` e
+    `rawUserChatDetails.rawUserMessage`.
+  - `GET /api/agentcontrol/subscribe` (WebSocket) com `scope_key=assistant` ou
+    `chat_feature_type=figmake`, `metered_user_action=foundry` e `workload=assistant`/`make-generic`.
+- [x] O servidor da Figma monta o system prompt/tools, chama o modelo e devolve os eventos pelo
+  WebSocket. Não existe `/v1/messages` local; o body do cliente não é um request de modelo.
+- [x] `metered_user_action=foundry` confirma que a ação é medida pela Figma; redirecionar para o
+  LiteLLM seria bypass de medição, proibido pelo AGENTS.md e pelo PRD (§12).
+- [x] "Trocar o destino do body" exigiria reimplementar o agente server-side (parsear o protocolo,
+  montar prompt/tools, chamar o LiteLLM, traduzir eventos/tool calls e executar as ferramentas).
+  Não é um proxy; é um produto novo.
+
+**Por que o Make Local não funciona no Windows**
+- [x] O único caminho client-side é o `figcode` do Make Local, que chama
+  `api.figma.com/ai-gateway`.
+- [x] O `figcode` é Mac-only no beta fechado: `desktop.figma.com/figcode/mac/UPDATE.json` → `200`,
+  `/linux/` → `200`, `/win/UPDATE.json` → **403**.
+- [x] No Windows não há processo `figcode`, nem `FigcodeData`, nem `%APPDATA%\Figma\Figcode`;
+  `desktop_make_local_enabled` não está ativo e `makeLocalTrustedDirectoriesByUser` está vazio.
+  O Make testado foi o cloud (`type=figmake`, `cortex/shared/figmake`), não o local.
+- [x] O app 126.11.8 tem o bridge `makeLocal`/`figcode` (REA: 104 refs `figcode`, 123 `makeLocal`);
+  o `app-asar` do instalador 126.11.7 em `executavel` está criptografado (REA: 0 JS parseado).
+
+**Impacto e próximos passos**
+- [x] A integração (CA + WinINET + proxy + LiteLLM) está funcional; o que não funciona é a premissa
+  de substituir o modelo do **chat cloud**.
+- [ ] No Windows, as opções são: plugin/companion com chat próprio usando o LiteLLM; aguardar o
+  `figcode` Windows; ou usar Mac + Make Local.
+- [x] A limitação está alinhada ao PRD §12 ("suportar IA fora do caminho do figcode" é
+  não-objetivo), mas precisa ficar explícita no produto/onboarding.
+- [x] A captura usada no diagnóstico era read-only e foi revertida; nenhum bypass foi implementado
+  ou commitado.
 
 ### Próximo passo
 
