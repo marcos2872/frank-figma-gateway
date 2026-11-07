@@ -10,7 +10,7 @@ mod setup_store;
 mod state;
 mod tray;
 
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 
 pub fn run() {
     tauri::Builder::default()
@@ -95,6 +95,36 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let state = handle.state::<state::AppState>();
                 restore_integration(&state).await;
+            });
+
+            // A UI escuta `service://status`; sem emissão ela ficaria presa em
+            // "Iniciando" mesmo depois de o health check passar.
+            let events_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut last: std::collections::HashMap<String, String> =
+                    std::collections::HashMap::new();
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    let state = events_handle.state::<state::AppState>();
+                    let Ok(statuses) = commands::services::service_status(state).await else {
+                        continue;
+                    };
+                    for status in statuses {
+                        let key = format!("{:?}", status.name);
+                        let signature =
+                            format!("{:?}|{:?}|{:?}", status.state, status.health, status.detail);
+                        if last
+                            .get(&key)
+                            .is_some_and(|previous| previous == &signature)
+                        {
+                            continue;
+                        }
+                        last.insert(key, signature);
+                        if let Err(error) = events_handle.emit(events::SERVICE_STATUS, &status) {
+                            log::warn!("falha ao emitir {}: {error}", events::SERVICE_STATUS);
+                        }
+                    }
+                }
             });
 
             tray::build(app)?;
