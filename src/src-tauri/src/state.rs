@@ -2,7 +2,10 @@
 
 use crate::ca::CaManager;
 use crate::paths::RuntimePaths;
-use crate::platform::{EnvStore, PlatformCertStore, PlatformEnvStore, PlatformFileProtector};
+use crate::platform::{
+    EnvStore, PlatformCertStore, PlatformEnvStore, PlatformFileProtector, PlatformSystemProxyStore,
+    SystemProxyStore,
+};
 use crate::secrets::PlatformSecretStore;
 use crate::setup_store::SetupStore;
 use ffg_core::manifest::{RuntimePolicy, TrustedKey};
@@ -25,6 +28,7 @@ pub struct AppState {
     pub copilot: ffg_litellm::CopilotAuth,
     pub ca: Arc<CaManager>,
     pub env: Arc<dyn EnvStore>,
+    pub system_proxy: Arc<dyn SystemProxyStore>,
     pub proxy: Mutex<Option<ProxyHandle>>,
     pub operations: Mutex<HashMap<String, CancellationToken>>,
 }
@@ -57,6 +61,7 @@ impl AppState {
                 Arc::new(PlatformFileProtector::default()),
             )),
             env: Arc::new(PlatformEnvStore::default()),
+            system_proxy: Arc::new(PlatformSystemProxyStore::default()),
             proxy: Mutex::new(None),
             operations: Mutex::new(HashMap::new()),
         })

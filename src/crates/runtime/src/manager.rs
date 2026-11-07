@@ -36,6 +36,7 @@ impl RuntimeManager {
         let downloader = Downloader::new(root.join("cache").join("downloads"));
         let installer = Installer::new(root.clone());
         let client = reqwest::Client::builder()
+            .no_proxy()
             .connect_timeout(Duration::from_secs(15))
             .build()
             .map_err(|error| RuntimeError::Network(error.to_string()))?;

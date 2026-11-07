@@ -1,6 +1,8 @@
 //! In-memory fallback used by tests and non-Windows builds.
 
-use super::{CertStore, EnvStore, FileProtector, PlatformError};
+use super::{
+    CertStore, EnvStore, FileProtector, PlatformError, SystemProxySnapshot, SystemProxyStore,
+};
 use ffg_core::env_plan::{EnvMutation, EnvSnapshot};
 use std::collections::HashSet;
 use std::sync::Mutex;
@@ -81,6 +83,39 @@ impl EnvStore for MemoryEnvStore {
                 _ => {}
             }
         }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MemorySystemProxy {
+    current: Mutex<SystemProxySnapshot>,
+}
+
+impl SystemProxyStore for MemorySystemProxy {
+    fn snapshot(&self) -> Result<SystemProxySnapshot, PlatformError> {
+        self.current
+            .lock()
+            .map_err(|_| PlatformError("system proxy lock poisoned".to_owned()))
+            .map(|value| value.clone())
+    }
+
+    fn apply(&self, port: u16) -> Result<(), PlatformError> {
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| PlatformError("system proxy lock poisoned".to_owned()))?;
+        current.enabled = Some(1);
+        current.server = Some(format!("127.0.0.1:{port}"));
+        Ok(())
+    }
+
+    fn restore(&self, snapshot: &SystemProxySnapshot) -> Result<(), PlatformError> {
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| PlatformError("system proxy lock poisoned".to_owned()))?;
+        *current = snapshot.clone();
         Ok(())
     }
 }

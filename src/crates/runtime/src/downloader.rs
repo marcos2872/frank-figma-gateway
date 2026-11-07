@@ -75,6 +75,7 @@ pub struct Downloader {
 impl Downloader {
     pub fn new(downloads_dir: PathBuf) -> Self {
         let client = reqwest::Client::builder()
+            .no_proxy()
             .connect_timeout(Duration::from_secs(15))
             .build()
             .unwrap_or_default();

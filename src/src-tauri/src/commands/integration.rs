@@ -2,6 +2,7 @@
 
 use crate::commands::proxy::{ensure_proxy, stop_proxy};
 use crate::figma::{self, FigmaInfo};
+use crate::platform::SystemProxySnapshot;
 use crate::state::AppState;
 use ffg_core::env_plan::{plan_proxy_env, ProxyDesired, ProxyEnvPlan};
 use ffg_core::error::{ErrorCode, UiError};
@@ -175,6 +176,22 @@ async fn install_steps(state: &AppState, restart_figma: bool) -> Result<Integrat
     journal.env_snapshot_ref = Some(env_plan_path(state).display().to_string());
     save_journal(state, &journal)?;
 
+    // O renderer da Figma é Chromium e ignora `HTTPS_PROXY`: sem o proxy do
+    // sistema, só o agente Node passaria pelo MITM.
+    let system_proxy = state
+        .system_proxy
+        .snapshot()
+        .map_err(|error| platform_error(error.to_string()))?;
+    save_system_proxy_snapshot(state, &system_proxy)?;
+    state
+        .system_proxy
+        .apply(proxy.port)
+        .map_err(|error| platform_error(error.to_string()))?;
+    log::info!(
+        "integração: proxy do sistema apontando para 127.0.0.1:{}",
+        proxy.port
+    );
+
     log::info!("integração: validando TLS/rewrite");
     let validation = validate(state).await?;
     log::info!("integração: validação ok={}", validation.ok);
@@ -215,6 +232,15 @@ async fn remove(state: &AppState) -> Result<IntegrationView, UiError> {
             .map_err(|error| platform_error(error.to_string()))?;
         let _ = fs::remove_file(env_plan_path(state));
         journal.mark_done(IntegrationStep::EnvRestore, Some(&now_utc()));
+    }
+
+    if let Some(snapshot) = load_system_proxy_snapshot(state)? {
+        state
+            .system_proxy
+            .restore(&snapshot)
+            .map_err(|error| platform_error(error.to_string()))?;
+        let _ = fs::remove_file(system_proxy_path(state));
+        log::info!("integração: proxy do sistema restaurado");
     }
 
     stop_proxy(state)?;
@@ -375,6 +401,47 @@ fn save_journal(state: &AppState, journal: &IntegrationJournal) -> Result<(), Ui
 
 fn env_plan_path(state: &AppState) -> std::path::PathBuf {
     state.paths.state_dir().join("integration.env.dpapi")
+}
+
+fn system_proxy_path(state: &AppState) -> std::path::PathBuf {
+    state.paths.state_dir().join("integration.proxy.dpapi")
+}
+
+fn save_system_proxy_snapshot(
+    state: &AppState,
+    snapshot: &SystemProxySnapshot,
+) -> Result<(), UiError> {
+    let raw = serde_json::to_vec(snapshot).map_err(|error| {
+        UiError::internal("Não foi possível serializar o proxy do sistema.")
+            .with_detail(error.to_string())
+    })?;
+    let protected = state
+        .ca
+        .protector()
+        .protect(&raw)
+        .map_err(|error| platform_error(error.to_string()))?;
+    fs::write(system_proxy_path(state), protected).map_err(io_error)
+}
+
+fn load_system_proxy_snapshot(state: &AppState) -> Result<Option<SystemProxySnapshot>, UiError> {
+    let path = system_proxy_path(state);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let protected = fs::read(path).map_err(io_error)?;
+    let raw = state
+        .ca
+        .protector()
+        .unprotect(&protected)
+        .map_err(|error| platform_error(error.to_string()))?;
+    let snapshot = serde_json::from_slice(&raw).map_err(|error| {
+        UiError::new(
+            ErrorCode::StateCorrupt,
+            "Snapshot do proxy do sistema inválido.",
+        )
+        .with_detail(error.to_string())
+    })?;
+    Ok(Some(snapshot))
 }
 
 fn save_env_plan(state: &AppState, plan: &ProxyEnvPlan) -> Result<(), UiError> {

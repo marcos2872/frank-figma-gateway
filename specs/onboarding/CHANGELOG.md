@@ -170,6 +170,8 @@ Itens marcados com `[ ]` ainda não foram validados no Windows.
 
 - [x] `EnvStore` de plataforma: `HKCU\Environment` no Windows + broadcast `WM_SETTINGCHANGE`;
   fallback em memória.
+- [x] Proxy do sistema (WinINET `Internet Settings`) com snapshot/restore: o renderer da Figma é
+  Chromium e ignora `HTTPS_PROXY`; sem isso só o agente Node passaria pelo MITM.
 - [x] Instalação transacional: CA → proxy → env → validação, com journal em
   `state/integration.json`.
 - [x] Snapshot/restore do env protegido por DPAPI (fallback plain nos testes).
