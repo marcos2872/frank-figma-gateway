@@ -61,7 +61,7 @@ Sub-fluxo do Copilot:
 1. baixa o Postgres embutido (~30–60 MB);
 2. inicializa o cluster e sobe;
 3. sobe o LiteLLM com `DATABASE_URL`;
-4. cria a credential `github-copilot` e o alias `claude-opus-4-8`;
+4. cria a credential `github-copilot` e o alias do modelo principal do seletor;
 5. abre a UI do LiteLLM (ou device flow) e mostra código/link;
 6. espera “Connected” e testa uma chamada.
 
@@ -69,7 +69,8 @@ Avança com teste OK, ou “pular com aviso”.
 
 ### Passo 3 — Modelos e fallback
 
-- Exibe `claude-opus-4-8` e `claude-haiku-4-5` (nomes que o figcode envia).
+- Exibe os ids que o cliente envia — codenames da Figma (`anthropic-claude-5.5-opus`,
+  `figaro-gpt-6-sol`, `aqua`, `default`) e os `claude-*` do agente — com um alias por id.
 - Pré-preenche com o modelo do passo 2.
 - Permite fallback (ex.: Copilot → OpenRouter).
 - Gera `config.yaml` e reinicia o LiteLLM.

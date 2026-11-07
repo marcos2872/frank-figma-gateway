@@ -166,3 +166,76 @@ footer small {
   background: #1d1a12;
   color: var(--ink);
 }
+
+.status-stopping .status-dot {
+  background: var(--warn);
+}
+
+.badge {
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.badge-inProgress {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.badge-completed {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badge-needsAttention {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.steps {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #161b23;
+}
+
+.step small {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.step-done .status-dot {
+  background: var(--accent);
+}
+
+.step-inProgress .status-dot {
+  background: var(--warn);
+}
+
+.step-failed .status-dot {
+  background: var(--danger);
+}
+
+.step-stale {
+  border-style: dashed;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

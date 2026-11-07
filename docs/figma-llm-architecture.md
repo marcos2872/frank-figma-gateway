@@ -230,13 +230,40 @@ Características:
 
 ## 6. Seleção de modelo
 
-- A escolha é **do cliente** (`figcode`/Claude Code), não do servidor da Figma.
-- Catálogo: retornado pelo `initialize` do Claude Code (`supportedModels()`), com nomes como
-  `claude-opus-4-8` (default, "Opus 4.8 · Recommended") e `claude-haiku-4-5` (tarefas auxiliares).
-- Aliases `default` e `opus` resolvem para `claude-opus-4-8`; `set_model` recebe o nome escolhido.
-- O nome do modelo viaja no corpo de `/v1/messages`; o gateway pode reescrevê-lo.
-- Consequência: é possível trocar o modelo real sem tocar na UI, mas o **nome exibido** no seletor
-  continua sendo o do catálogo do Claude Code.
+Validado no Figma desktop **126.11.7** (bundle do web app no cache do perfil + `app.asar`).
+
+- A escolha é **do cliente**, não do servidor da Figma: a UI envia `set_model` ao agente local
+  (`figcode`) e o agente usa o id no corpo de `/v1/messages`.
+- **Catálogo:** vem de `get_supported_models` → resposta `supported_models`, um canal **IPC/stdio**
+  com o agente local — não é um endpoint HTTP. O web app guarda só a lista de ids conhecidos e o
+  nome exibido de cada um (um `switch` fixo no bundle).
+- **Consequência:** o proxy **não consegue injetar modelos no seletor**. A lista nunca passa pela
+  rede, e um id desconhecido nem é exibido.
+- **O que o proxy controla:** o id que chega no corpo de `/v1/messages`. Ele pode ser reescrito ou
+  mapeado para uma rota do LiteLLM, trocando o modelo real sem tocar na UI.
+
+### Ids observados no seletor do Make
+
+Codenames da Figma (não são os ids nativos do Claude Code):
+
+| Id | Nome exibido |
+|---|---|
+| `default` | Auto |
+| `anthropic-claude-5.5-opus` / `anthropic-claude-5.5-sonnet` | Claude Opus 5.5 / Sonnet 5.5 |
+| `anthropic-claude-5-opus` / `anthropic-claude-5-sonnet` | Claude Opus 5 / Sonnet 5 |
+| `anthropic-claude-4.8-opus`, `anthropic-claude-4.6-opus` / `-sonnet` | versões anteriores |
+| `figaro-gpt-6-sol`, `figaro-gpt-6-astra`, `figaro-gpt-6-luna` | Figaro · GPT-6 |
+| `figaro-gpt-5.6-sol` / `figaro-gpt-5.6-terra`, `figaro-sonnet-4.6` | Figaro · GPT-5.6 / Sonnet 4.6 |
+| `aqua` | Gemini 4 Argon |
+| `google-gemini-3.8-flash`, `google-gemini-3-flash`, `google-gemini-3.1-pro` | Gemini |
+| `velvet`, `goldenrod`, `emerald`, `tangelo` | codenames sem provedor revelado |
+
+O agente também configura o filho `claude` com ids nativos do Claude Code
+(`ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5`), então o mapeamento precisa aceitar **as duas
+famílias**: codenames da Figma e ids `claude-*`/`anth-*`.
+
+> Ainda não confirmado em execução: qual id chega no corpo em cada fluxo (Make, agente, tarefas
+> auxiliares) e se o agente encaminha o codename da Figma sem tradução.
 
 ## 7. TLS, proxy e integridade
 
@@ -264,4 +291,5 @@ Características:
 - O corpo, os headers e a sequência SSE exatos ainda precisam ser confirmados em execução.
 - O host e o path podem variar por ambiente (stable, staging, gov).
 - O gateway será substituído; a validação do token original não é relevante para o gateway.
-- O catálogo de modelos pode mudar entre versões do Claude Code.
+- O catálogo e os codenames de modelo mudam entre versões do Figma (validado na 126.11.7); o
+  mapeamento precisa ser configurável, não hardcoded.
