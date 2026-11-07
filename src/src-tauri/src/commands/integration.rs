@@ -77,14 +77,25 @@ pub async fn figma_remove(state: State<'_, AppState>) -> Result<IntegrationView,
 
 #[tauri::command]
 pub async fn figma_restart(state: State<'_, AppState>) -> Result<FigmaInfo, UiError> {
-    let _ = state;
-    figma::restart().map_err(|error| {
+    figma::restart_with_proxy(current_proxy_port(&state)).map_err(|error| {
         UiError::new(
             ErrorCode::FigmaRestart,
             "Não foi possível reiniciar o Figma.",
         )
         .with_detail(error.to_string())
     })
+}
+
+/// Porta do proxy em execução ou a persistida no journal da integração.
+fn current_proxy_port(state: &AppState) -> Option<u16> {
+    if let Ok(guard) = state.proxy.lock() {
+        if let Some(handle) = guard.as_ref() {
+            return Some(handle.port());
+        }
+    }
+    load_journal(state)
+        .ok()
+        .and_then(|journal| journal.proxy_port)
 }
 
 #[tauri::command]
@@ -186,7 +197,7 @@ async fn install_steps(state: &AppState, restart_figma: bool) -> Result<Integrat
     save_journal(state, &journal)?;
 
     if restart_figma {
-        let _ = figma::restart();
+        let _ = figma::restart_with_proxy(Some(proxy.port));
     }
 
     let journal = load_journal(state)?;

@@ -81,8 +81,12 @@ fn is_running() -> bool {
     false
 }
 
+/// Reinicia o Figma injetando o proxy no ambiente do processo.
+///
+/// O app pode ter sido iniciado antes de o `HTTPS_PROXY` ser gravado no
+/// registro, então herdar o ambiente atual não basta: o Figma abriria sem proxy.
 #[cfg(windows)]
-pub fn restart() -> Result<FigmaInfo, FigmaError> {
+pub fn restart_with_proxy(proxy_port: Option<u16>) -> Result<FigmaInfo, FigmaError> {
     let info = detect();
     let Some(path) = info.path.clone() else {
         return Err(FigmaError::NotFound);
@@ -96,14 +100,23 @@ pub fn restart() -> Result<FigmaInfo, FigmaError> {
             return Err(FigmaError::Process("taskkill falhou".to_owned()));
         }
     }
-    std::process::Command::new(&path)
+
+    let mut command = std::process::Command::new(&path);
+    if let Some(port) = proxy_port {
+        let url = format!("http://127.0.0.1:{port}");
+        command
+            .env("HTTPS_PROXY", &url)
+            .env("HTTP_PROXY", &url)
+            .env("NO_PROXY", "localhost,127.0.0.1,::1");
+    }
+    command
         .spawn()
         .map_err(|error| FigmaError::Process(error.to_string()))?;
     Ok(detect())
 }
 
 #[cfg(not(windows))]
-pub fn restart() -> Result<FigmaInfo, FigmaError> {
+pub fn restart_with_proxy(_proxy_port: Option<u16>) -> Result<FigmaInfo, FigmaError> {
     Err(FigmaError::Unsupported)
 }
 
