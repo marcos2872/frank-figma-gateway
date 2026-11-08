@@ -1,0 +1,10 @@
+[
+  {
+    "keyId": "2026-01",
+    "algorithm": "ed25519",
+    "publicKey": "Hvo1EE5DZ8/tOjFw+oZKZvGx5tPHDH08He2togu2sbY=",
+    "status": "active",
+    "notBefore": null,
+    "notAfter": null
+  }
+]

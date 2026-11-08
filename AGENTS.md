@@ -206,19 +206,19 @@ Regras:
 - Windows é o alvo primário para o app Tauri.
 - Push direto na `main` é bloqueado; toda mudança entra por PR.
 
-## 11. CD — pendente de implementação
+## 11. CD — app pendente; runtime implementado
 
-Contrato a implementar em `.github/workflows/release.yml` (tag `v*`):
+O **runtime** (LiteLLM/Postgres + manifesto assinado) tem workflow próprio em
+[`release-runtime.yml`](.github/workflows/release-runtime.yml), disparado por tags `runtime-v*` ou
+`workflow_dispatch`. Ele publica o release versionado e atualiza o canal `runtime-latest`, que é a
+URL consumida pelo app.
+
+O **app** continua pendente, a implementar em `.github/workflows/release-app.yml` (tag `v*`):
 
 1. Build do instalador Tauri (assinado e com timestamp).
-2. Build dos artefatos de runtime:
-   - `litellm-runtime-<versao>-win-x64.zip`;
-   - `pgsql-<versao>-win-x64.zip`.
-3. Gerar `manifest.json` com `version`, `url`, `sha256`, `size`, `minAppVersion`.
-4. Assinar o manifesto com **Ed25519** (chave privada em secret; pública embutida no app).
-5. Smoke test em runner Windows (provider fake).
-6. Publicar release com instalador, artefatos, manifesto e `.sig`.
-7. Atualizar o endpoint do updater.
+2. Smoke test em runner Windows (provider fake).
+3. Publicar release com o instalador.
+4. Atualizar o endpoint do updater.
 
 Regras:
 
@@ -226,6 +226,7 @@ Regras:
 - Release com rollback: manter a versão anterior disponível.
 - Não publicar sem artefatos verificados por hash.
 - Assinatura de código do instalador é obrigatória para release público.
+- Runtime e app usam tags separadas (`runtime-v*` e `v*`) para não disputarem o canal `latest`.
 
 ## 12. Documentação
 

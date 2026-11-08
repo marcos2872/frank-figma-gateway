@@ -3,5 +3,5 @@ ui/dist/
 target/
 src-tauri/target/
 src-tauri/gen/
-runtime/
+/runtime/
 lcov.info

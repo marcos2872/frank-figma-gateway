@@ -2,3 +2,4 @@
 .agents/
 executavel/
 opencode.jsonc
+.env

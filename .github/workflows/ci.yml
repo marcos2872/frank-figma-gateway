@@ -27,9 +27,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src -> target
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
       - run: cargo fmt --all -- --check
-      - run: cargo clippy -p ffg-core --all-targets -- -D warnings
+      - run: cargo clippy -p ffg-core -p ffg-runtime -p ffg-supervisor -p ffg-litellm -p ffg-proxy -p ffg-postgres --all-targets -- -D warnings
+      - run: cargo clippy -p manifest-signer -p manifest-verify --all-targets -- -D warnings
       - run: cargo test -p ffg-core
+      - run: cargo test -p ffg-runtime
+      - run: cargo test -p ffg-supervisor
+      - run: cargo test -p ffg-litellm
+      - run: cargo test -p ffg-proxy
+      - run: cargo test -p ffg-postgres
 
   ci-coverage:
     name: ci-coverage
@@ -46,7 +53,13 @@ jobs:
         with:
           workspaces: src -> target
       - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
       - run: cargo llvm-cov -p ffg-core --fail-under-lines 80 --lcov --output-path lcov.info
+      - run: cargo llvm-cov -p ffg-runtime --fail-under-lines 70
+      - run: cargo llvm-cov -p ffg-supervisor --fail-under-lines 70
+      - run: cargo llvm-cov -p ffg-litellm --fail-under-lines 70
+      - run: cargo llvm-cov -p ffg-proxy --fail-under-lines 70
+      - run: cargo llvm-cov -p ffg-postgres --fail-under-lines 70
       - uses: actions/upload-artifact@v4
         with:
           name: rust-coverage

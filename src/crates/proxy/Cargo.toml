@@ -1,0 +1,34 @@
+[package]
+name = "ffg-proxy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Local CA and selective MITM proxy for the Figma AI gateway"
+
+[dependencies]
+bytes = "1"
+ffg-core = { path = "../core" }
+log = "0.4"
+pem = "3"
+rcgen = { version = "0.13", features = ["pem", "x509-parser"] }
+futures-util = "0.3"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["http1", "http2", "server"] }
+hyper-util = { version = "0.1", features = ["server-auto", "http1", "http2", "tokio"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "stream", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["net", "io-util", "sync", "time", "rt", "macros"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+time = { version = "0.3", features = ["formatting"] }
+x509-parser = "0.16"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"

@@ -1,0 +1,10 @@
+[package]
+name = "manifest-verify"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Verifies the runtime manifest signature and policy"
+
+[dependencies]
+ffg-core = { path = "../../crates/core" }
+serde_json = "1"
