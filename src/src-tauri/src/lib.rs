@@ -90,7 +90,7 @@ pub fn run() {
             });
 
             // Se a integração com o Figma estava ativa, o proxy precisa voltar a
-            // subir junto com o app (o env já aponta para ele).
+            // subir junto com o app; o proxy é injetado no processo do Figma.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = handle.state::<state::AppState>();
@@ -146,16 +146,22 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 let state = app.state::<state::AppState>();
-                commands::integration::restore_system_proxy_on_exit(state.inner());
+                commands::integration::restore_legacy_system_proxy(state.inner());
             }
         });
 }
 
 /// Restaura o proxy quando o journal da integração está `active`.
 ///
-/// O env em `HKCU\Environment` continua apontando para o proxy depois de um
-/// restart; sem subir o proxy, todo o tráfego do Figma falharia.
+/// O proxy é injetado apenas no processo do Figma; o boot também limpa
+/// resíduos globais de versões antigas (env e WinINET).
 async fn restore_integration(state: &state::AppState) {
+    // Cleanup global state from older versions even when the journal is inactive.
+    if let Err(error) = commands::integration::cleanup_legacy_env(state) {
+        log::warn!("falha ao limpar o env global antigo: {}", error.message);
+    }
+    commands::integration::restore_legacy_system_proxy(state);
+
     let path = state.paths.integration_file();
     let Ok(raw) = std::fs::read(&path) else {
         return;
@@ -184,12 +190,6 @@ async fn restore_integration(state: &state::AppState) {
                 "integração ativa: proxy restaurado na porta {}",
                 status.port
             );
-            if let Err(error) = commands::integration::ensure_system_proxy(state, status.port) {
-                log::warn!(
-                    "integração ativa, mas o proxy do sistema não foi aplicado: {}",
-                    error.message
-                );
-            }
         }
         Err(error) => log::warn!("integração ativa, mas o proxy não subiu: {}", error.message),
     }

@@ -43,11 +43,9 @@ pub struct SystemProxySnapshot {
     pub auto_config_url: Option<String>,
 }
 
-/// Proxy do sistema (WinINET). O renderer da Figma é Chromium e ignora
-/// `HTTPS_PROXY`; ele usa estas configurações.
+/// Legacy WinINET proxy state, kept for cleanup of older installs.
 pub trait SystemProxyStore: Send + Sync {
     fn snapshot(&self) -> Result<SystemProxySnapshot, PlatformError>;
-    fn apply(&self, port: u16) -> Result<(), PlatformError>;
     fn restore(&self, snapshot: &SystemProxySnapshot) -> Result<(), PlatformError>;
 }
 

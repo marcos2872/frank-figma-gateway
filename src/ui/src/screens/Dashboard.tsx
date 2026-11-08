@@ -93,7 +93,7 @@ export default function Dashboard() {
       const info = await restartFigma();
       setRestartMessage(
         info.running
-          ? "Figma reiniciado com HTTPS_PROXY no ambiente."
+          ? "Figma aberto com o proxy injetado no processo."
           : "Figma aberto.",
       );
     } catch (problem) {
@@ -236,7 +236,7 @@ export default function Dashboard() {
       <section className="panel">
         <h2>Integração com o Figma</h2>
         <p>
-          Instala a CA local, configura <code>HTTPS_PROXY</code> e sobe o proxy MITM. Reversível.
+          Instala a CA local e sobe o proxy MITM. Use “Abrir Figma com proxy” para injetar o proxy apenas no processo dele; o botão fecha o Figma atual. Reversível.
         </p>
         <div className="actions">
           <button
@@ -260,7 +260,7 @@ export default function Dashboard() {
             disabled={restarting || !isTauri}
             onClick={() => void restartFigmaApp()}
           >
-            {restarting ? "Reiniciando…" : "Reiniciar Figma"}
+            {restarting ? "Abrindo…" : "Abrir Figma com proxy"}
           </button>
         </div>
         {restartMessage ? <p className="hint">{restartMessage}</p> : null}

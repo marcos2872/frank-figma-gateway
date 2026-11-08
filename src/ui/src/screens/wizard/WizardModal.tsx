@@ -53,7 +53,7 @@ const wizardSteps: WizardStep[] = [
     id: "figma",
     phase: "F6–F8",
     description:
-      "CA local, proxy MITM, variáveis em HKCU e validação de TLS/rewrite.",
+      "CA local, proxy MITM e abertura do Figma com o proxy injetado no processo.",
   },
   {
     id: "finish",

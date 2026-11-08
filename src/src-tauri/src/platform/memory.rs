@@ -100,16 +100,6 @@ impl SystemProxyStore for MemorySystemProxy {
             .map(|value| value.clone())
     }
 
-    fn apply(&self, port: u16) -> Result<(), PlatformError> {
-        let mut current = self
-            .current
-            .lock()
-            .map_err(|_| PlatformError("system proxy lock poisoned".to_owned()))?;
-        current.enabled = Some(1);
-        current.server = Some(format!("127.0.0.1:{port}"));
-        Ok(())
-    }
-
     fn restore(&self, snapshot: &SystemProxySnapshot) -> Result<(), PlatformError> {
         let mut current = self
             .current

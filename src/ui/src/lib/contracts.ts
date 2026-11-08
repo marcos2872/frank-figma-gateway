@@ -360,7 +360,6 @@ export interface IntegrationView {
   caThumbprint?: string | null;
   proxyRunning: boolean;
   proxyPort?: number | null;
-  envInstalled: boolean;
   figma: FigmaInfo;
 }
 

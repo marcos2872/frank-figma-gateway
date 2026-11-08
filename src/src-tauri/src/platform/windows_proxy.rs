@@ -35,19 +35,6 @@ impl super::SystemProxyStore for WindowsSystemProxy {
         })
     }
 
-    fn apply(&self, port: u16) -> Result<(), PlatformError> {
-        with_key(|key| {
-            write_string(key, PROXY_SERVER, &format!("127.0.0.1:{port}"))?;
-            write_dword(key, PROXY_ENABLE, 1)?;
-            write_string(key, PROXY_OVERRIDE, "<local>;localhost;127.0.0.1;::1")?;
-            // PAC tem precedência sobre o proxy fixo.
-            delete_value(key, AUTO_CONFIG_URL)?;
-            Ok(())
-        })?;
-        refresh();
-        Ok(())
-    }
-
     fn restore(&self, snapshot: &SystemProxySnapshot) -> Result<(), PlatformError> {
         with_key(|key| {
             match snapshot.enabled {

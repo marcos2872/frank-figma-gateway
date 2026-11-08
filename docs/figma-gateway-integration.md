@@ -26,6 +26,8 @@ flowchart LR
     A -->|supervisiona| P
     A -->|supervisiona| L
     A -->|supervisiona| PG
+    A -->|abre com proxy| E
+    E -->|proxy do processo| P
     E -->|spawn| F -->|spawn| C
     C -->|HTTPS_PROXY| P
     P -->|túnel| API
@@ -43,7 +45,7 @@ flowchart LR
 | Token da Figma e renovação | Não |
 | Nome do modelo no seletor | Não |
 | Destino da inferência | Sim |
-| Configuração de rede do usuário | Sim (CA + env), reversível |
+| Configuração de rede do usuário | Não (CA no usuário; proxy só no processo do Figma) |
 
 ## 2. Fluxo ponta a ponta
 
@@ -78,18 +80,21 @@ sequenceDiagram
 
 | Opção | Como | Prós | Contras | Uso |
 |---|---|---|---|---|
-| **A. Proxy + CA** | `HTTPS_PROXY` + CA em `CurrentUser\Root` | Sem hosts, túnel para o resto, reversível | CA precisa ser confiada; reiniciar Figma | **Padrão do app** |
+| **A. Proxy + CA no processo** | `--proxy-server` + `HTTPS_PROXY` injetados ao abrir o Figma + CA em `CurrentUser\Root` | Sem hosts, túnel para o resto, não altera o proxy global | CA precisa ser confiada; Figma precisa ser aberto pelo app | **Padrão do app** |
 | B. Proxy + `NODE_EXTRA_CA_CERTS` | Igual, mas sem trust store | Não mexe na store | Depende de env herdado | Testes |
 | C. `hosts` + reverse proxy | `api.figma.com → 127.0.0.1` | Sem proxy | Afeta todo o host; frágil | Último recurso |
 
 ### Por que funciona
 
+- O app abre o Figma com `--proxy-server=http://127.0.0.1:<porta>`; o renderer Electron/Chromium
+  passa a usar o proxy sem depender do WinINET global.
+- O app também injeta `HTTPS_PROXY`, `HTTP_PROXY` e `NO_PROXY` **apenas no processo do Figma**.
 - O processo main passa `NODE_USE_SYSTEM_CA=1` ao figcode; o `claude` herda.
 - Claude Code suporta `NODE_EXTRA_CA_CERTS` e `HTTPS_PROXY`.
 - Não há certificate pinning.
-- O figcode herda `process.env`; `HTTPS_PROXY` é lido no start do Figma.
 
-> `NO_PROXY` deve incluir `localhost,127.0.0.1,::1`.
+> `NO_PROXY` deve incluir `localhost,127.0.0.1,::1`. Ele é injetado no processo do Figma, não no
+> ambiente do usuário.
 
 ## 4. Regras de roteamento
 
@@ -109,16 +114,31 @@ O wizard do app faz, sem admin:
 
 1. gera CA + certificado para `api.figma.com` (e variantes);
 2. instala a CA em `Cert:\CurrentUser\Root`;
-3. grava `HTTPS_PROXY`, `HTTP_PROXY` e `NO_PROXY` em `HKCU\Environment`;
-4. sobe o proxy e valida TLS + rewrite;
-5. detecta o Figma aberto e oferece “Fechar e reabrir”;
-6. marca “conectado” quando a primeira requisição de IA passa.
+3. sobe o proxy e valida TLS + rewrite;
+4. abre ou reinicia o Figma com `--proxy-server` e `HTTPS_PROXY` **apenas no processo dele**
+   (o botão fecha o Figma atual; salve o trabalho antes);
+5. marca “conectado” quando a primeira requisição de IA passa.
 
-**Rollback:** remove CA e variáveis; o Figma volta ao comportamento original após reiniciar.
+O app **não grava `HKCU\Environment` nem altera o WinINET**. Ferramentas de CLI (`npm`, `git`,
+`opencode`, navegadores etc.) continuam com a rede normal. O botão do dashboard é “Abrir Figma com
+proxy”; abrir o Figma por fora do app não injeta o gateway.
+
+**Rollback:** remove a CA; o proxy global nunca foi alterado. Feche o Figma para voltar ao
+comportamento original.
+
+### Limpeza de versões antigas
+
+Instalações antigas podiam gravar `HTTPS_PROXY` em `HKCU\Environment` e ativar o WinINET. No boot,
+na instalação e na remoção o app:
+
+- restaura o env original quando o snapshot antigo não aponta para o próprio gateway;
+- remove valores que apontam para o gateway (inclusive snapshots envenenados);
+- restaura ou desliga o WinINET legado.
 
 ### Instalação manual (fallback)
 
-Se política corporativa bloquear o wizard:
+Se política corporativa bloquear o wizard, defina as variáveis **apenas no processo do Figma** e
+instale a CA exportada pelo app em “Autoridades de Certificação Raiz Confiáveis” do usuário:
 
 ```text
 HTTPS_PROXY=http://127.0.0.1:8787
@@ -126,7 +146,11 @@ HTTP_PROXY=http://127.0.0.1:8787
 NO_PROXY=localhost,127.0.0.1,::1
 ```
 
-E instalar a CA exportada pelo app em “Autoridades de Certificação Raiz Confiáveis” do usuário.
+No Windows, abra o Figma com os argumentos:
+
+```text
+--proxy-server=http://127.0.0.1:8787 --proxy-bypass-list=localhost;127.0.0.1;::1
+```
 
 ## 6. Modos de operação
 
@@ -144,8 +168,9 @@ O padrão é `translate` com `fail-closed`; fail-open é opcional (usa o modelo 
 - O app fica no tray; fechar a janela (X) não encerra.
 - Menu: Abrir dashboard, Configurar Figma, Abrir LiteLLM, Reiniciar serviços, Logs, Sair.
 - Autostart no login, oculto; serviços sobem sozinhos.
-- **Sair** encerra proxy/LiteLLM/Postgres e **desativa o proxy do Figma** (remove env), avisando que o
-  Figma precisa ser reiniciado para voltar ao normal.
+- **Sair** encerra proxy/LiteLLM/Postgres e restaura resíduos globais de versões antigas. O env do
+  usuário e o WinINET nunca são usados pelo desenho atual; o Figma precisa ser reaberto pelo app para
+  voltar a usar o gateway.
 - Single instance: segunda execução foca o dashboard.
 
 ## 8. Atualizações do figcode
@@ -168,6 +193,7 @@ O padrão é `translate` com `fail-closed`; fail-open é opcional (usa o modelo 
 | Copilot “model not supported” | Plano sem o modelo | Escolher modelo permitido |
 | Postgres não sobe | Porta/dados/migração | Reiniciar serviço; ver logs |
 | Outras APIs quebram | Proxy interceptando demais | Garantir túnel para não-IA |
+| Make sem conexão com o gateway | Figma aberto fora do app | Usar “Abrir Figma com proxy” |
 
 ## 10. Matriz de compatibilidade
 
@@ -190,7 +216,7 @@ O padrão é `translate` com `fail-closed`; fail-open é opcional (usa o modelo 
 6. Erros: 401, 429, 500 e timeout.
 7. Cancelamento no meio do stream.
 8. Update do figcode e do runtime com rollback.
-9. Rollback da integração (CA/env) e volta ao normal.
+9. Rollback da integração (CA) e volta ao normal; o proxy global permanece intocado.
 
 ## 12. Segurança e conformidade
 

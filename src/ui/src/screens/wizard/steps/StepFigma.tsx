@@ -121,8 +121,9 @@ export function StepFigma({ onNext }: WizardStepProps) {
   return (
     <div className="wizard-step-body">
       <p>
-        A integração instala a CA em <code>CurrentUser\Root</code>, sobe o proxy
-        e configura <code>HTTPS_PROXY</code> por usuário.
+        A integração instala a CA em <code>CurrentUser\Root</code> e sobe o proxy.
+        Use “Abrir Figma com proxy” para iniciar o Figma com o gateway injetado
+        apenas no processo dele. O botão fecha o Figma atual; salve o trabalho antes.
       </p>
       {figma ? (
         <p className="wizard-meta">
@@ -145,10 +146,6 @@ export function StepFigma({ onNext }: WizardStepProps) {
                 : "parado"}
             </span>
           </li>
-          <li className={`wizard-check ${integration.envInstalled ? "check-pass" : "check-warn"}`}>
-            <span className="wizard-check-status">Env</span>
-            <span>{integration.envInstalled ? "configurado" : "não configurado"}</span>
-          </li>
         </ul>
       ) : null}
       {validation ? (
@@ -167,7 +164,7 @@ export function StepFigma({ onNext }: WizardStepProps) {
           Validar
         </button>
         <button type="button" className="secondary" disabled={busy} onClick={() => void restart()}>
-          Reiniciar Figma
+          Abrir Figma com proxy
         </button>
         <button type="button" className="secondary" disabled={busy} onClick={() => void remove()}>
           Remover

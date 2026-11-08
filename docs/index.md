@@ -19,4 +19,5 @@ Ponto de entrada dos documentos do projeto.
 - Banco: **Postgres embutido** para o perfil Copilot; SQLite apenas para estado do app.
 - App: **Tauri v2** com tray, autostart e close-to-tray.
 - Instalador mínimo; runtime baixado no onboarding.
-- Integração com o Figma via **CA local + `HTTPS_PROXY`**, sem patch em binários.
+- Integração com o Figma via **CA local + proxy injetado no processo do Figma**, sem patch em binários
+  e sem alterar o proxy global do Windows.

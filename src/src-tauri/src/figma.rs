@@ -81,10 +81,10 @@ fn is_running() -> bool {
     false
 }
 
-/// Reinicia o Figma injetando o proxy no ambiente do processo.
+/// Reinicia o Figma injetando o proxy apenas no processo dele.
 ///
-/// O app pode ter sido iniciado antes de o `HTTPS_PROXY` ser gravado no
-/// registro, então herdar o ambiente atual não basta: o Figma abriria sem proxy.
+/// O figcode herda `process.env`, e o renderer Electron/Chromium recebe
+/// `--proxy-server`; nenhum dos dois altera o proxy global do Windows.
 #[cfg(windows)]
 pub fn restart_with_proxy(proxy_port: Option<u16>) -> Result<FigmaInfo, FigmaError> {
     let info = detect();
@@ -105,6 +105,7 @@ pub fn restart_with_proxy(proxy_port: Option<u16>) -> Result<FigmaInfo, FigmaErr
     if let Some(port) = proxy_port {
         let url = format!("http://127.0.0.1:{port}");
         command
+            .args(proxy_args(port))
             .env("HTTPS_PROXY", &url)
             .env("HTTP_PROXY", &url)
             .env("NO_PROXY", "localhost,127.0.0.1,::1");
@@ -113,6 +114,14 @@ pub fn restart_with_proxy(proxy_port: Option<u16>) -> Result<FigmaInfo, FigmaErr
         .spawn()
         .map_err(|error| FigmaError::Process(error.to_string()))?;
     Ok(detect())
+}
+
+/// Chromium switches that scope the proxy to the Figma process.
+fn proxy_args(port: u16) -> [String; 2] {
+    [
+        format!("--proxy-server=http://127.0.0.1:{port}"),
+        "--proxy-bypass-list=localhost;127.0.0.1;::1".to_owned(),
+    ]
 }
 
 #[cfg(not(windows))]
@@ -139,3 +148,19 @@ impl std::fmt::Display for FigmaError {
 }
 
 impl std::error::Error for FigmaError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_the_chromium_proxy_arguments() {
+        assert_eq!(
+            proxy_args(57995),
+            [
+                "--proxy-server=http://127.0.0.1:57995".to_owned(),
+                "--proxy-bypass-list=localhost;127.0.0.1;::1".to_owned(),
+            ]
+        );
+    }
+}

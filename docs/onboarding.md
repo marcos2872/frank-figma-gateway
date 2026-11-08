@@ -78,8 +78,9 @@ Avança com teste OK, ou “pular com aviso”.
 ### Passo 4 — Conectar Figma
 
 - Detecta `%LOCALAPPDATA%\Figma\...` e a versão; se não houver, link oficial + “pular”.
-- Mostra o que muda: CA em `CurrentUser\Root`, env em `HKCU\Environment`, proxy em loopback.
-- “Instalar integração” (sem admin) → CA + env + proxy + validação de TLS/rewrite.
+- Mostra o que muda: CA em `CurrentUser\Root` e proxy em loopback; nada no env do usuário nem no
+  WinINET.
+- “Instalar integração” (sem admin) → CA + proxy + abertura do Figma com o proxy injetado no processo.
 - Se o Figma estiver aberto, oferece “Fechar e reabrir” (aviso de trabalho não salvo) ou “depois”.
 - Marca verde quando a primeira requisição de IA passa pelo proxy.
 

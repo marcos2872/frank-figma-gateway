@@ -44,7 +44,7 @@ flowchart LR
 - **Proxy:** Rust (MITM seletivo em `api.figma.com`)
 - **Engine:** LiteLLM Proxy `v1.108.1` (sidecar)
 - **Banco:** Postgres embutido (perfil Copilot); SQLite apenas para estado do app
-- **Integração:** CA local + `HTTPS_PROXY`, sem patch no Figma
+- **Integração:** CA local + proxy injetado no processo do Figma, sem patch e sem alterar o proxy global
 
 ## Documentação
 

@@ -110,7 +110,7 @@ O daemon responde `initialized` com `meta.version`; só então o processo é con
 | `FIGCODE_DISABLE_SELF_UPDATE` | `"1"` | Atualização é orquestrada pelo Electron |
 | `NODE_USE_SYSTEM_CA` | `"1"` | Trust store do sistema para TLS |
 | `FIGCODE_MAKE_LOCAL_SYSTEM_PROMPT_ENABLED` | flag | Prompt de sistema do Make Local |
-| `HTTPS_PROXY` / `HTTP_PROXY` | proxy do sistema (opcional) | Descoberto atrás da flag `make_local_enable_proxy_discovery` |
+| `HTTPS_PROXY` / `HTTP_PROXY` | proxy injetado no processo do Figma pelo app (não global) | Descoberto atrás da flag `make_local_enable_proxy_discovery` |
 
 ### Tipos de mensagem (amostra)
 
@@ -271,7 +271,7 @@ famílias**: codenames da Figma e ids `claude-*`/`anth-*`.
 |---|---|
 | Certificate pinning | **Não encontrado** no cliente de inferência |
 | Trust store | `NODE_USE_SYSTEM_CA=1` passado pelo app ao `figcode`; Claude Code também suporta `NODE_EXTRA_CA_CERTS` |
-| Proxy | `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY` honrados; descoberta automática atrás da flag `make_local_enable_proxy_discovery` |
+| Proxy | `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY` honrados, injetados apenas no processo do Figma; descoberta automática atrás da flag `make_local_enable_proxy_discovery` |
 | Atualização | pacote do figcode verificado por checksum antes de instalar |
 | Pacote do app | assinatura própria; não é alterado pelo gateway |
 | Atualização | `figcode` sai com código `42` para aplicar update; o main respawna |

@@ -29,18 +29,19 @@ pub enum IntegrationStep {
 }
 
 impl IntegrationStep {
-    pub const INSTALL_STEPS: [IntegrationStep; 4] = [
+    /// Steps required for a new install.
+    ///
+    /// `EnvWrite`/`EnvRestore` remain in the enum only to read journals written
+    /// by older versions; the current integration never touches
+    /// `HKCU\Environment`.
+    pub const INSTALL_STEPS: [IntegrationStep; 3] = [
         IntegrationStep::CaInstall,
         IntegrationStep::ProxyStart,
-        IntegrationStep::EnvWrite,
         IntegrationStep::Validate,
     ];
 
-    pub const REMOVAL_STEPS: [IntegrationStep; 3] = [
-        IntegrationStep::EnvRestore,
-        IntegrationStep::ProxyStop,
-        IntegrationStep::CaRemove,
-    ];
+    pub const REMOVAL_STEPS: [IntegrationStep; 2] =
+        [IntegrationStep::ProxyStop, IntegrationStep::CaRemove];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -163,9 +164,7 @@ impl IntegrationJournal {
     /// Reverse order of the completed side effects.
     pub fn rollback_plan(&self) -> Vec<IntegrationStep> {
         let mut plan = Vec::new();
-        if self.is_done(IntegrationStep::EnvWrite) && !self.is_done(IntegrationStep::EnvRestore) {
-            plan.push(IntegrationStep::EnvRestore);
-        }
+        // Legacy env writes are cleaned unconditionally by the app, not here.
         if self.is_done(IntegrationStep::ProxyStart) && !self.is_done(IntegrationStep::ProxyStop) {
             plan.push(IntegrationStep::ProxyStop);
         }
@@ -222,16 +221,26 @@ mod tests {
     }
 
     #[test]
-    fn rollback_runs_env_then_proxy_then_ca() {
+    fn rollback_runs_proxy_then_ca() {
         let journal = active_journal();
         assert_eq!(
             journal.rollback_plan(),
-            vec![
-                IntegrationStep::EnvRestore,
-                IntegrationStep::ProxyStop,
-                IntegrationStep::CaRemove
-            ]
+            vec![IntegrationStep::ProxyStop, IntegrationStep::CaRemove]
         );
+    }
+
+    #[test]
+    fn legacy_journal_with_env_steps_is_still_active() {
+        let mut journal = IntegrationJournal::new();
+        for step in [
+            IntegrationStep::CaInstall,
+            IntegrationStep::ProxyStart,
+            IntegrationStep::EnvWrite,
+            IntegrationStep::Validate,
+        ] {
+            journal.mark_done(step, None);
+        }
+        assert_eq!(journal.status, IntegrationStatus::Active);
     }
 
     #[test]
@@ -244,7 +253,6 @@ mod tests {
     #[test]
     fn rollback_is_idempotent() {
         let mut journal = active_journal();
-        journal.mark_done(IntegrationStep::EnvRestore, None);
         journal.mark_done(IntegrationStep::ProxyStop, None);
         assert_eq!(journal.rollback_plan(), vec![IntegrationStep::CaRemove]);
         journal.mark_done(IntegrationStep::CaRemove, None);

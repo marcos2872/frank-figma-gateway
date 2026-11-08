@@ -102,7 +102,8 @@ A UI do LiteLLM não deve ser iframe no dashboard (X-Frame-Options); usar `Webvi
 
 - `tauri-plugin-autostart`, por usuário, sem admin.
 - Inicia oculto (`--hidden`), sobe serviços e só mostra janela em erro.
-- Não é serviço do Windows: a integração é por sessão (CA em `CurrentUser`, env em `HKCU`).
+- Não é serviço do Windows: a integração é por sessão (CA em `CurrentUser`; proxy injetado apenas no
+  processo do Figma).
 
 ## 6. Segurança
 
@@ -126,7 +127,7 @@ src/
 │   │   ├── supervisor.rs     # sidecars, job object, health
 │   │   ├── proxy/            # CONNECT, MITM seletivo, rewrite
 │   │   ├── ca.rs             # geração/instalação da CA
-│   │   ├── env.rs            # HKCU\Environment + WM_SETTINGCHANGE
+│   │   ├── env.rs            # leitura/limpeza do HKCU\Environment (legado)
 │   │   ├── postgres.rs       # initdb/pg_ctl
 │   │   ├── setup.rs          # estado do onboarding
 │   │   ├── tray.rs

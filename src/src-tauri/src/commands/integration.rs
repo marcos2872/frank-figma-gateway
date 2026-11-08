@@ -1,10 +1,12 @@
-//! Figma integration: CA, proxy, HKCU environment and reversible journal.
+//! Figma integration: CA, proxy, per-process Figma environment and reversible journal.
 
 use crate::commands::proxy::{ensure_proxy, stop_proxy};
 use crate::figma::{self, FigmaInfo};
 use crate::platform::SystemProxySnapshot;
 use crate::state::AppState;
-use ffg_core::env_plan::{plan_proxy_env, ProxyDesired, ProxyEnvPlan};
+use ffg_core::env_plan::{
+    EnvMutation, EnvSnapshot, ProxyEnvPlan, HTTPS_PROXY, HTTP_PROXY, LOOPBACK_NO_PROXY, NO_PROXY,
+};
 use ffg_core::error::{ErrorCode, UiError};
 use ffg_core::integration::{IntegrationJournal, IntegrationStatus, IntegrationStep};
 use ffg_proxy::proxy;
@@ -20,7 +22,6 @@ pub struct IntegrationView {
     pub ca_thumbprint: Option<String>,
     pub proxy_running: bool,
     pub proxy_port: Option<u16>,
-    pub env_installed: bool,
     pub figma: FigmaInfo,
 }
 
@@ -123,10 +124,10 @@ pub async fn remove_figma_integration(state: State<'_, AppState>) -> Result<Setu
 async fn install(state: &AppState, restart_figma: bool) -> Result<IntegrationView, UiError> {
     let journal = load_journal(state)?;
     if journal.status == IntegrationStatus::Active {
-        // Instalações anteriores ao proxy do sistema têm o journal ativo mas
-        // nunca gravaram o WinINET. Reaplicar aqui torna o botão idempotente.
-        let proxy = ensure_proxy(state).await?;
-        ensure_system_proxy(state, proxy.port)?;
+        // Reabrir a integração também limpa resíduos globais de versões antigas.
+        ensure_proxy(state).await?;
+        cleanup_legacy_env(state)?;
+        restore_legacy_system_proxy(state);
         return view(state, &journal);
     }
 
@@ -160,29 +161,11 @@ async fn install_steps(state: &AppState, restart_figma: bool) -> Result<Integrat
     journal.proxy_port = Some(proxy.port);
     save_journal(state, &journal)?;
 
-    log::info!("integração: gravando HKCU\\Environment");
-    let snapshot = state
-        .env
-        .snapshot()
-        .map_err(|error| platform_error(error.to_string()))?;
-    let desired = ProxyDesired {
-        proxy_url: format!("http://127.0.0.1:{}", proxy.port),
-        no_proxy: Vec::new(),
-    };
-    let plan = plan_proxy_env(&snapshot, &desired)
-        .map_err(|error| UiError::new(ErrorCode::EnvWrite, error.to_string()))?;
-    save_env_plan(state, &plan)?;
-    state
-        .env
-        .apply(&plan.mutations)
-        .map_err(|error| platform_error(error.to_string()))?;
-    journal.mark_done(IntegrationStep::EnvWrite, Some(&now_utc()));
-    journal.env_snapshot_ref = Some(env_plan_path(state).display().to_string());
-    save_journal(state, &journal)?;
-
-    // O renderer da Figma é Chromium e ignora `HTTPS_PROXY`: sem o proxy do
-    // sistema, só o agente Node passaria pelo MITM.
-    ensure_system_proxy(state, proxy.port)?;
+    // O app não altera o proxy global: o Figma é aberto com o proxy apenas
+    // no processo dele. Limpa resíduos de versões antigas.
+    log::info!("integração: limpando configurações globais de versões antigas");
+    cleanup_legacy_env(state)?;
+    restore_legacy_system_proxy(state);
 
     log::info!("integração: validando TLS/rewrite");
     let validation = validate(state).await?;
@@ -207,6 +190,8 @@ async fn install_steps(state: &AppState, restart_figma: bool) -> Result<Integrat
 
     if restart_figma {
         let _ = figma::restart_with_proxy(Some(proxy.port));
+    } else {
+        log::info!("integração: abra o Figma pelo app para injetar o proxy no processo");
     }
 
     let journal = load_journal(state)?;
@@ -217,23 +202,8 @@ async fn remove(state: &AppState) -> Result<IntegrationView, UiError> {
     let mut journal = load_journal(state)?;
     journal.begin_removal();
 
-    if let Some(plan) = load_env_plan(state)? {
-        state
-            .env
-            .apply(&plan.restore_mutations())
-            .map_err(|error| platform_error(error.to_string()))?;
-        let _ = fs::remove_file(env_plan_path(state));
-        journal.mark_done(IntegrationStep::EnvRestore, Some(&now_utc()));
-    }
-
-    if let Some(snapshot) = load_system_proxy_snapshot(state)? {
-        state
-            .system_proxy
-            .restore(&snapshot)
-            .map_err(|error| platform_error(error.to_string()))?;
-        let _ = fs::remove_file(system_proxy_path(state));
-        log::info!("integração: proxy do sistema restaurado");
-    }
+    cleanup_legacy_env(state)?;
+    restore_legacy_system_proxy(state);
 
     stop_proxy(state)?;
     journal.mark_done(IntegrationStep::ProxyStop, Some(&now_utc()));
@@ -246,45 +216,128 @@ async fn remove(state: &AppState) -> Result<IntegrationView, UiError> {
     view(state, &journal)
 }
 
-/// Aponta o proxy do sistema para o proxy local, preservando o estado anterior.
+/// Removes proxy variables written globally by older versions.
 ///
-/// Instalações feitas antes do suporte a WinINET não têm snapshot. Nesse caso
-/// capturamos o estado atual antes de aplicar; se ele já for o nosso proxy,
-/// não há original para recuperar.
-pub(crate) fn ensure_system_proxy(state: &AppState, port: u16) -> Result<(), UiError> {
-    let current = state
-        .system_proxy
-        .snapshot()
-        .map_err(|error| platform_error(error.to_string()))?;
-    if load_system_proxy_snapshot(state)?.is_none() && !is_our_proxy(&current, port) {
-        save_system_proxy_snapshot(state, &current)?;
+/// The integration no longer changes `HKCU\Environment`: the proxy is injected
+/// only into the Figma process so CLI tools keep their own network settings.
+/// A legacy snapshot with a corporate proxy is restored; values that point at
+/// our own proxy are removed.
+pub(crate) fn cleanup_legacy_env(state: &AppState) -> Result<(), UiError> {
+    let Some(port) = known_proxy_port(state) else {
+        let _ = fs::remove_file(env_plan_path(state));
+        return Ok(());
+    };
+    let mutations = match load_env_plan(state)? {
+        Some(plan) => legacy_restore_mutations(&plan, port),
+        None => {
+            let snapshot = state
+                .env
+                .snapshot()
+                .map_err(|error| platform_error(error.to_string()))?;
+            legacy_env_mutations(&snapshot, port)
+        }
+    };
+    if !mutations.is_empty() {
+        state
+            .env
+            .apply(&mutations)
+            .map_err(|error| platform_error(error.to_string()))?;
+        log::info!("integração: variáveis de proxy globais de versões antigas ajustadas");
     }
-    state
-        .system_proxy
-        .apply(port)
-        .map_err(|error| platform_error(error.to_string()))?;
-    log::info!("integração: proxy do sistema apontando para 127.0.0.1:{port}");
+    let _ = fs::remove_file(env_plan_path(state));
     Ok(())
 }
 
-/// Restaura o proxy do sistema antes de o processo encerrar.
+fn known_proxy_port(state: &AppState) -> Option<u16> {
+    current_proxy_port(state).or_else(|| {
+        state
+            .setup
+            .lock()
+            .ok()
+            .and_then(|store| store.load().ok())
+            .and_then(|loaded| loaded.state.services.proxy)
+    })
+}
+
+fn legacy_restore_mutations(plan: &ProxyEnvPlan, port: u16) -> Vec<EnvMutation> {
+    plan.restore_mutations()
+        .into_iter()
+        .map(|mutation| match mutation {
+            EnvMutation::Set { name, value }
+                if (name == HTTP_PROXY || name == HTTPS_PROXY) && points_to_us(&value, port) =>
+            {
+                EnvMutation::Remove { name }
+            }
+            EnvMutation::Set { name, value } if name == NO_PROXY && is_loopback_only(&value) => {
+                EnvMutation::Remove { name }
+            }
+            other => other,
+        })
+        .collect()
+}
+
+fn legacy_env_mutations(snapshot: &EnvSnapshot, port: u16) -> Vec<EnvMutation> {
+    let mut mutations = Vec::new();
+    if snapshot
+        .https_proxy
+        .as_deref()
+        .is_some_and(|value| points_to_us(value, port))
+    {
+        mutations.push(EnvMutation::Remove {
+            name: HTTPS_PROXY.to_owned(),
+        });
+    }
+    if snapshot
+        .http_proxy
+        .as_deref()
+        .is_some_and(|value| points_to_us(value, port))
+    {
+        mutations.push(EnvMutation::Remove {
+            name: HTTP_PROXY.to_owned(),
+        });
+    }
+    if snapshot.no_proxy.as_deref().is_some_and(is_loopback_only) {
+        mutations.push(EnvMutation::Remove {
+            name: NO_PROXY.to_owned(),
+        });
+    }
+    mutations
+}
+
+fn points_to_us(value: &str, port: u16) -> bool {
+    let ours = format!("http://127.0.0.1:{port}");
+    value.trim_end_matches('/').eq_ignore_ascii_case(&ours)
+}
+
+fn is_loopback_only(value: &str) -> bool {
+    let entries: Vec<String> = value
+        .split(',')
+        .map(|entry| entry.trim().to_ascii_lowercase())
+        .filter(|entry| !entry.is_empty())
+        .collect();
+    entries.len() == LOOPBACK_NO_PROXY.len()
+        && LOOPBACK_NO_PROXY
+            .iter()
+            .all(|expected| entries.iter().any(|entry| entry.as_str() == *expected))
+}
+
+/// Restores the WinINET proxy left behind by older versions.
 ///
-/// Sem isto, o WinINET continuaria apontando para uma porta morta e todos os
-/// apps do usuário ficariam sem internet até o app subir de novo.
-pub(crate) fn restore_system_proxy_on_exit(state: &AppState) {
+/// The current integration never changes the system proxy: the Figma process
+/// receives `--proxy-server`. This cleanup runs on boot, install, removal and
+/// exit only to undo legacy state.
+pub(crate) fn restore_legacy_system_proxy(state: &AppState) {
     match load_system_proxy_snapshot(state) {
         Ok(Some(snapshot)) => match state.system_proxy.restore(&snapshot) {
             Ok(()) => {
                 let _ = fs::remove_file(system_proxy_path(state));
-                log::info!("integração: proxy do sistema restaurado na saída");
+                log::info!("integração: proxy do sistema legado restaurado");
             }
             Err(error) => {
-                log::warn!("falha ao restaurar o proxy do sistema na saída: {error}");
+                log::warn!("falha ao restaurar o proxy do sistema legado: {error}");
             }
         },
         Ok(None) => {
-            // Sem snapshot (instalação legada): se o WinINET ainda aponta para
-            // nós, desliga para não deixar a máquina sem internet.
             let port = load_journal(state)
                 .ok()
                 .and_then(|journal| journal.proxy_port);
@@ -300,14 +353,14 @@ pub(crate) fn restore_system_proxy_on_exit(state: &AppState) {
             let mut disabled = current;
             disabled.enabled = Some(0);
             if let Err(error) = state.system_proxy.restore(&disabled) {
-                log::warn!("falha ao desligar o proxy do sistema na saída: {error}");
+                log::warn!("falha ao desligar o proxy do sistema legado: {error}");
             } else {
-                log::info!("integração: proxy do sistema desligado na saída (sem snapshot)");
+                log::info!("integração: proxy do sistema legado desligado");
             }
         }
         Err(error) => {
             log::warn!(
-                "falha ao ler o snapshot do proxy do sistema na saída: {}",
+                "falha ao ler o snapshot do proxy do sistema legado: {}",
                 error.message
             );
         }
@@ -327,22 +380,8 @@ async fn validate(state: &AppState) -> Result<IntegrationValidation, UiError> {
         .map_err(|_| UiError::internal("proxy lock envenenado"))?
         .as_ref()
         .map(|handle| handle.status());
-    let snapshot = state
-        .env
-        .snapshot()
-        .map_err(|error| platform_error(error.to_string()))?;
-
     let proxy_running = proxy.as_ref().is_some_and(|status| status.running);
     let proxy_port = proxy.as_ref().map(|status| status.port);
-    let expected_proxy = proxy_port.map(|port| format!("http://127.0.0.1:{port}"));
-    let env_ok = expected_proxy.as_ref().is_some_and(|expected| {
-        snapshot.https_proxy.as_deref() == Some(expected.as_str())
-            && snapshot.http_proxy.as_deref() == Some(expected.as_str())
-            && snapshot
-                .no_proxy
-                .as_deref()
-                .is_some_and(|value| value.contains("127.0.0.1") && value.contains("localhost"))
-    });
 
     let self_test = if let (true, Some(port)) = (proxy_running, proxy_port) {
         let ca = state.ca.authority().map_err(|error| error.to_ui_error())?;
@@ -360,12 +399,6 @@ async fn validate(state: &AppState) -> Result<IntegrationValidation, UiError> {
             "CA instalada em CurrentUser\\Root",
         ),
         check("proxy", proxy_running, true, "proxy rodando em loopback"),
-        check(
-            "env",
-            env_ok,
-            true,
-            "HTTPS_PROXY/HTTP_PROXY/NO_PROXY configurados",
-        ),
         check(
             "rewrite",
             self_test.as_ref().is_some_and(|result| result.ok),
@@ -397,20 +430,11 @@ fn view(state: &AppState, journal: &IntegrationJournal) -> Result<IntegrationVie
         .map_err(|_| UiError::internal("proxy lock envenenado"))?
         .as_ref()
         .map(|handle| handle.status());
-    let snapshot = state
-        .env
-        .snapshot()
-        .map_err(|error| platform_error(error.to_string()))?;
     let proxy_running = proxy.as_ref().is_some_and(|status| status.running);
     let proxy_port = proxy
         .as_ref()
         .map(|status| status.port)
         .or(journal.proxy_port);
-    let env_installed = proxy_port.is_some_and(|port| {
-        let expected = format!("http://127.0.0.1:{port}");
-        snapshot.https_proxy.as_deref() == Some(expected.as_str())
-            && snapshot.http_proxy.as_deref() == Some(expected.as_str())
-    });
 
     Ok(IntegrationView {
         status: journal.status,
@@ -418,7 +442,6 @@ fn view(state: &AppState, journal: &IntegrationJournal) -> Result<IntegrationVie
         ca_thumbprint: ca.thumbprint,
         proxy_running,
         proxy_port,
-        env_installed,
         figma: figma::detect(),
     })
 }
@@ -472,22 +495,6 @@ fn system_proxy_path(state: &AppState) -> std::path::PathBuf {
     state.paths.state_dir().join("integration.proxy.dpapi")
 }
 
-fn save_system_proxy_snapshot(
-    state: &AppState,
-    snapshot: &SystemProxySnapshot,
-) -> Result<(), UiError> {
-    let raw = serde_json::to_vec(snapshot).map_err(|error| {
-        UiError::internal("Não foi possível serializar o proxy do sistema.")
-            .with_detail(error.to_string())
-    })?;
-    let protected = state
-        .ca
-        .protector()
-        .protect(&raw)
-        .map_err(|error| platform_error(error.to_string()))?;
-    fs::write(system_proxy_path(state), protected).map_err(io_error)
-}
-
 fn load_system_proxy_snapshot(state: &AppState) -> Result<Option<SystemProxySnapshot>, UiError> {
     let path = system_proxy_path(state);
     if !path.is_file() {
@@ -507,19 +514,6 @@ fn load_system_proxy_snapshot(state: &AppState) -> Result<Option<SystemProxySnap
         .with_detail(error.to_string())
     })?;
     Ok(Some(snapshot))
-}
-
-fn save_env_plan(state: &AppState, plan: &ProxyEnvPlan) -> Result<(), UiError> {
-    let raw = serde_json::to_vec(plan).map_err(|error| {
-        UiError::internal("Não foi possível serializar o snapshot de env.")
-            .with_detail(error.to_string())
-    })?;
-    let protected = state
-        .ca
-        .protector()
-        .protect(&raw)
-        .map_err(|error| platform_error(error.to_string()))?;
-    fs::write(env_plan_path(state), protected).map_err(io_error)
 }
 
 fn load_env_plan(state: &AppState) -> Result<Option<ProxyEnvPlan>, UiError> {
@@ -588,5 +582,89 @@ mod tests {
         };
         assert!(!is_our_proxy(&disabled, 57995));
         assert!(!is_our_proxy(&corporate, 57995));
+    }
+
+    fn snapshot_with(proxy: Option<&str>, no_proxy: Option<&str>) -> EnvSnapshot {
+        EnvSnapshot {
+            https_proxy: proxy.map(str::to_owned),
+            http_proxy: proxy.map(str::to_owned),
+            no_proxy: no_proxy.map(str::to_owned),
+            all_proxy: None,
+        }
+    }
+
+    #[test]
+    fn removes_legacy_env_values_that_point_at_us() {
+        let snapshot = snapshot_with(
+            Some("http://127.0.0.1:57995"),
+            Some("localhost,127.0.0.1,::1"),
+        );
+        assert_eq!(legacy_env_mutations(&snapshot, 57995).len(), 3);
+    }
+
+    #[test]
+    fn keeps_corporate_proxies_and_extra_no_proxy_entries() {
+        let snapshot = snapshot_with(
+            Some("http://proxy.corp:8080"),
+            Some("corp.local,localhost,127.0.0.1,::1"),
+        );
+        assert!(legacy_env_mutations(&snapshot, 57995).is_empty());
+    }
+
+    #[test]
+    fn matches_legacy_values_with_a_trailing_slash() {
+        let snapshot = snapshot_with(Some("http://127.0.0.1:57995/"), None);
+        assert_eq!(legacy_env_mutations(&snapshot, 57995).len(), 2);
+    }
+
+    #[test]
+    fn keeps_a_loopback_proxy_from_another_port() {
+        let snapshot = snapshot_with(Some("http://127.0.0.1:57996"), None);
+        assert!(legacy_env_mutations(&snapshot, 57995).is_empty());
+    }
+
+    fn plan_with(snapshot_proxy: Option<&str>, snapshot_no_proxy: Option<&str>) -> ProxyEnvPlan {
+        use ffg_core::env_plan::{plan_proxy_env, ProxyDesired};
+
+        let snapshot = snapshot_with(snapshot_proxy, snapshot_no_proxy);
+        plan_proxy_env(
+            &snapshot,
+            &ProxyDesired {
+                proxy_url: "http://127.0.0.1:57995".to_owned(),
+                no_proxy: Vec::new(),
+            },
+        )
+        .expect("plan")
+    }
+
+    #[test]
+    fn restores_a_corporate_proxy_from_a_legacy_plan() {
+        let plan = plan_with(Some("http://proxy.corp:8080"), Some("corp.local"));
+        let mutations = legacy_restore_mutations(&plan, 57995);
+
+        assert!(mutations.iter().any(|mutation| matches!(
+            mutation,
+            EnvMutation::Set { name, value }
+                if name == HTTPS_PROXY && value == "http://proxy.corp:8080"
+        )));
+        assert!(mutations.iter().any(|mutation| matches!(
+            mutation,
+            EnvMutation::Set { name, value }
+                if name == NO_PROXY && value == "corp.local"
+        )));
+    }
+
+    #[test]
+    fn discards_a_poisoned_snapshot_from_a_legacy_plan() {
+        let plan = plan_with(
+            Some("http://127.0.0.1:57995"),
+            Some("localhost,127.0.0.1,::1"),
+        );
+        let mutations = legacy_restore_mutations(&plan, 57995);
+
+        assert_eq!(mutations.len(), 3);
+        assert!(mutations
+            .iter()
+            .all(|mutation| matches!(mutation, EnvMutation::Remove { .. })));
     }
 }
