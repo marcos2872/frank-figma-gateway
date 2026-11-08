@@ -8,6 +8,14 @@
 > `default`) e o agente também usa ids `claude-*`. A lista vem de `get_supported_models` (IPC, não
 > HTTP), então o proxy não injeta modelos no seletor — só substitui o modelo real. Ver
 > `docs/figma-llm-architecture.md §6` e `docs/gateway-architecture.md §6`.
+>
+> **Revisão de 2026-11-07 — alvo de inferência no Windows:** o Make e a aba Agents rodam na nuvem da
+> Figma; o harness local (`figcode`/`claude`) não existe nesta instalação. A flag
+> `desktop_make_local_enabled` é server-side (o Figma a remove se injetada) e o canal de update do
+> `figcode` Windows responde 403. O gateway, a CA e o WinINET funcionam e o renderer passa pelo proxy,
+> mas não há `/v1/messages` local para reescrever. Consequência: o E2E com IA real não é alcançável no
+> Windows hoje; o onboarding deve detectar e comunicar a indisponibilidade. Diagnóstico completo em
+> [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
 
 ## 1. Resumo executivo
 
@@ -57,6 +65,8 @@ Os maiores riscos que podem mudar o plano são: ausência de API estável do Cop
 - Telemetria, crash reporting remoto ou analytics.
 - Patch do Figma, do `figcode` ou do Claude Code.
 - Contornar autenticação, licenciamento ou limites de plano.
+- Substituir o modelo do chat cloud (Make/Agents) por MITM do protocolo proprietário da Figma; ver
+  [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
 - Uso do diretório `enterprise/` do LiteLLM.
 - Auto-update silencioso de runtime; atualização é release nossa.
 - Fail-open completo para requests streaming (avaliar no MVP como fail-closed; ver decisões em aberto).
@@ -76,6 +86,12 @@ O onboarding é considerado concluído quando, em uma VM Windows limpa, sem admi
 - o tráfego não-IA do `api.figma.com` continua intacto;
 - o teste ponta a ponta passa com provider real ou fake de CI;
 - `cargo fmt`, clippy, testes, cobertura ≥80% no `ffg-core`, `pnpm build` e E2E Windows estão verdes.
+
+> **Revisão de 2026-11-07:** o E2E com IA real do Make/Agents não é alcançável no Windows enquanto o
+> `figcode` local não existir. Nesse ambiente, o critério de conclusão da integração é a validação de
+> rede (CA + env + proxy + self-test TLS/rewrite) e a mensagem de indisponibilidade no wizard; o teste
+> com IA real fica condicionado a plataforma/conta com Make Local. Ver
+> [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
 
 ---
 
@@ -1018,6 +1034,11 @@ Segurança: o banco contém tokens OAuth; data dir com ACL do usuário; backup s
 11. primeira requisição real do Figma (pode ficar “aguardando” até o usuário testar no Make);
 12. Figma detectado/versão.
 
+> **Revisão de 2026-11-07:** no Windows, o item 11 não pode ser concluído com o Make/Agents cloud — o
+> renderer passa pelo proxy, mas a inferência é server-side e não há `/v1/messages` local. O relatório
+> deve mostrar "aguardando Make Local" (com a explicação), não um teste que nunca fica verde. Ver
+> [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
+
 O relatório não inclui prompt/resposta; só status, duração e erro sanitizado. O teste real com provider é opcional no finish; em CI usa fake provider/fake LiteLLM.
 
 ---
@@ -1490,6 +1511,11 @@ Figma no Windows pendente.
 - Sair do app remove env e avisa; startup repara env órfão.
 - Rollback funciona em falha simulada no meio.
 
+> **Revisão de 2026-11-07:** a validação de TLS/rewrite continua válida, mas "primeira requisição
+> real de IA" só existe no Make Local. No Windows, o critério deve ser o self-test + a detecção de
+> `desktop_make_local_enabled` ausente, com mensagem explícita; não marcar verde por tráfego cloud.
+> Ver [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
+
 **Testes:** env store (mock + Windows registry), merge/restore, journal rollback, detecção com fixtures de pastas/registry, restart manual, validação TLS/rewrite, regressão não-IA, instalação/remoção idempotente.
 
 **Esforço:** 2–3 semanas.
@@ -1643,6 +1669,11 @@ carrossel, auto-abertura no first-run e tray; testes de UI/E2E Windows pendentes
 - `pnpm build`, `pnpm test`, clippy, testes, cobertura e `scripts/check_docs.py` verdes.
 - Primeiro run ≤10 min em rede típica.
 
+> **Revisão de 2026-11-07:** o E2E com Make/Agents cloud não é possível enquanto o `figcode` local não
+> existir. O E2E do Windows cobre a integração de rede e a mensagem de indisponibilidade; o teste com
+> IA real fica condicionado a uma plataforma/conta com Make Local. Ver
+> [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
+
 **Testes:** E2E, caos, regressão, contrato, instalação/desinstalação, updater; smoke manual com provider real.
 
 **Esforço:** 3–4 semanas.
@@ -1751,6 +1782,7 @@ Atualizar `.github/workflows/ci.yml`:
 | Licenças/redistribuição (LiteLLM/Postgres/Python) | Média | Alto | Revisão; notices; SBOM; excluir `enterprise/`; licença PostgreSQL | Auditoria de release |
 | Startup Python lento/timeout | Alta | Médio | Health readiness com timeout maior; progresso; rollback; logs tail | Teste em máquina lenta |
 | Caminhos com espaço/acentos/long path | Média | Médio | Args sem shell; `--locale=C`; testes em pt-BR; paths canônicos | Teste Windows pt-BR |
+| Alvo de inferência local indisponível no Windows (Make Local Mac-only / flag server-side) | Alta | Alto | Detectar `desktop_make_local_enabled` e comunicar; não prometer E2E com IA cloud; decidir plugin/companion, aguardar `figcode` Windows, Mac ou agente local + MCP | Diagnóstico [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md); teste de UI com a flag ausente |
 
 ---
 
@@ -1887,6 +1919,12 @@ Antes de codar, confirmar (recomendação entre parênteses):
     **Recomendação:** HTTP/1.1 CONNECT obrigatório; h2 e Upgrade como must-have de regressão não-IA, com testes; se `hudsucker` não cobrir, tunnelar Upgrade.
 20. **Fixtures reais de contrato:** precisamos de captura do Figma 126.11.7?
     **Recomendação:** sim, spike de captura redigida antes de F7; sem isso, usar fixtures sintéticas e marcar validação pendente.
+21. **Estratégia para IA cloud (Make/Agents):** continuar tentando interceptar o chat cloud, migrar
+    para plugin/companion, aguardar o `figcode` Windows, usar Mac + Make Local ou adotar agente local +
+    MCP?
+    **Recomendação:** não fazer MITM do protocolo proprietário; detectar a indisponibilidade no
+    Windows e priorizar agente local + LiteLLM + Figma MCP. Ver
+    [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
 
 ---
 

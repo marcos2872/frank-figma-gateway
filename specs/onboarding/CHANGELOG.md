@@ -3,6 +3,26 @@
 Registro cronológico do que está sendo implementado a partir de [`plan.md`](plan.md).
 Itens marcados com `[ ]` ainda não foram validados no Windows.
 
+## 2026-11-07
+
+### Revalidação — IA cloud vs. harness local
+
+- [x] Medição durante o Make: nenhum `figcode`/`claude`; `%APPDATA%\Figma\Figcode` e `FigcodeData`
+  ausentes.
+- [x] O Figma usa o WinINET quando é reiniciado (`Figma -> 127.0.0.1:57995`), descartando A2
+  ("o Chromium ignora o proxy").
+- [x] `figma_agent.exe` identificado como serviço nativo (fontes, spellcheck, abertura de URL e
+  updater), **não** o agente de IA.
+- [x] Aba **Agents** monitorada por 10 min (243 amostras): nenhum `figcode`/`claude`; o fluxo é cloud.
+- [x] `desktop_make_local_enabled` ausente do `settings.json`; ao injetar `true`, o Figma reescreve o
+  arquivo ao abrir e remove a flag. Não é configurável localmente.
+- [x] Conclusão: **A3** (cloud). O gateway vê o tráfego do renderer, mas não a inferência; não há
+  `/v1/messages` local para reescrever.
+- [x] Diagnóstico completo, evidências e alternativas em
+  [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
+- [ ] Ação de produto: detectar a indisponibilidade no wizard/dashboard e definir o alvo
+  (plugin/companion, aguardar `figcode` Windows, Mac + Make Local ou agente local + MCP).
+
 ## 2026-11-06
 
 ### Planejamento
@@ -410,6 +430,9 @@ Runs de validação — nenhum release publicado ainda:
 > download real dos artefatos e Figma real.
 
 ### Limitação descoberta — IA cloud vs Make Local (2026-11-06)
+
+> Revalidação e evidências completas em 2026-11-07:
+> [`diagnostico-ia-cloud.md`](diagnostico-ia-cloud.md).
 
 **O que foi validado**
 - [x] Proxy + CA + rewrite + LiteLLM: `POST /ai-gateway/.../v1/messages` pelo proxy → `200`,
